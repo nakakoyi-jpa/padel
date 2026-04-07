@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本パデル協会 全国ベテラン大会 管理システム</title>
+<style>
+:root{
+  --bd:#042C53;--bm:#185FA5;--bl:#E6F1FB;--bb:#B5D4F4;--bh:#0C447C;
+  --tp:#1a1a2e;--ts:#555;--bg:#f4f8ff;--ok:#1a7a4a;--okb:#e8f5ee;
+  --wn:#856404;--wnb:#fff3cd;--r:8px;--sh:0 2px 8px rgba(4,44,83,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;background:var(--bg);color:var(--tp);font-size:14px}
+
+/* HEADER */
+#hdr{background:linear-gradient(135deg,var(--bd) 0%,var(--bm) 100%)}
+#hdr-top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.12);flex-wrap:wrap;gap:8px}
+#logo-box{display:flex;align-items:center;gap:12px}
+#jpa-logo{width:52px;height:52px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bm);text-align:center;line-height:1.3;flex-shrink:0}
+#ttl h1{color:white;font-size:16px;font-weight:700;line-height:1.3}
+#ttl p{color:rgba(255,255,255,.7);font-size:11px;margin-top:2px}
+#sponsors{display:flex;gap:6px;flex-wrap:wrap}
+.sp-slot{width:64px;height:28px;background:rgba(255,255,255,.12);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(255,255,255,.5);border:1px dashed rgba(255,255,255,.2)}
+#nav{display:flex}
+.nb{flex:1;padding:10px 4px;border:none;background:transparent;color:rgba(255,255,255,.65);font-size:11px;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit}
+.nb.active{color:white;border-bottom-color:white;font-weight:700}
+.nb:hover:not(.active){color:rgba(255,255,255,.85);background:rgba(255,255,255,.05)}
+
+/* LAYOUT */
+#body{max-width:980px;margin:0 auto;padding:0 0 60px}
+.scr{display:none;padding:14px}
+.scr.active{display:block}
+#back-btn{display:none;margin:10px 14px 0;padding:5px 14px;background:white;border:1px solid var(--bb);border-radius:6px;color:var(--bm);font-size:12px;cursor:pointer;font-family:inherit}
+#back-btn:hover{background:var(--bl)}
+
+/* CARD */
+.card{background:white;border-radius:var(--r);border:1px solid var(--bb);box-shadow:var(--sh);margin-bottom:14px;overflow:hidden}
+.ch{background:var(--bl);padding:10px 14px;font-weight:700;color:var(--bd);font-size:13px;border-bottom:1px solid var(--bb);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cb{padding:14px}
+
+/* FORM */
+.fr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.fr label{font-size:12px;color:var(--bm);min-width:70px;font-weight:600}
+.fr input,.fr select{flex:1;padding:7px 10px;border:1px solid var(--bb);border-radius:6px;font-size:13px;font-family:inherit;outline:none}
+.fr input:focus,.fr select:focus{border-color:var(--bm)}
+
+/* BUTTONS */
+.btn{padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;transition:all .15s;border:none}
+.bp{background:var(--bm);color:white}.bp:hover{background:var(--bh)}
+.bs{background:white;color:var(--bm);border:1px solid var(--bb)}.bs:hover{background:var(--bl)}
+.bd2{background:#dc3545;color:white}
+.bo{background:#e67e00;color:white}
+.bg2{background:#28a745;color:white}
+.sm{padding:4px 10px;font-size:11px}
+
+/* ── DRAW SIZE SELECTOR ── */
+.draw-size-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#f8faff;border-bottom:1px solid var(--bb);flex-wrap:wrap}
+.draw-size-bar .dsl{font-size:11px;font-weight:700;color:var(--bd);white-space:nowrap}
+.dsz-btns{display:flex;gap:4px}
+.dsz{padding:5px 12px;border-radius:5px;border:1.5px solid var(--bb);background:white;color:var(--ts);font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;transition:all .15s}
+.dsz:hover{border-color:var(--bm);color:var(--bm)}
+.dsz.active{background:var(--bm);color:white;border-color:var(--bm)}
+.dsz.rr-mode{background:#6f42c1;color:white;border-color:#6f42c1}
+.draw-size-note{font-size:10px;color:#888;margin-left:4px}
+
+/* CAT GRID */
+#cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.ci{background:white;border:1px solid var(--bb);border-radius:8px;padding:10px;position:relative}
+.ci.off{opacity:.5}
+.ci-name{font-weight:700;font-size:13px;color:var(--bd);margin-bottom:4px}
+.ci-cnt{font-size:11px;color:var(--ts)}
+.ci-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.ci-toggle{position:absolute;top:8px;right:8px}
+
+/* TABS */
+#cat-tabs{overflow-x:auto;display:flex;background:#f0f4fa;border-bottom:1px solid var(--bb);scrollbar-width:none}
+#cat-tabs::-webkit-scrollbar{display:none}
+.ct{padding:9px 12px;border:none;background:transparent;font-size:11px;cursor:pointer;white-space:nowrap;font-family:inherit;border-bottom:3px solid transparent;color:#666}
+.ct.active{color:var(--bm);border-bottom-color:var(--bm);font-weight:700}
+.ct:hover:not(.active){color:var(--bd);background:rgba(24,95,165,.06)}
+
+/* DRAW INFO BAR */
+.draw-info{padding:8px 14px;background:var(--bl);border-bottom:1px solid var(--bb);font-size:12px;color:var(--bm);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+
+/* SEED LEGEND */
+.seed-legend{display:flex;align-items:center;gap:8px;font-size:11px;color:#555;padding:6px 14px;background:#fffef5;border-bottom:1px solid #f0e8b0;flex-wrap:wrap}
+
+/* DRAW WRAP */
+.draw-wrap{overflow-x:auto;padding:10px}
+.t-rounds{display:flex;gap:2px}
+.r-col{flex:1;min-width:130px}
+.r-hdr{text-align:center;font-size:11px;font-weight:700;color:white;padding:5px 4px;border-radius:4px;margin-bottom:6px}
+.r-hdr.day1{background:var(--bm)}
+.r-hdr.day2{background:#b05000}
+
+/* MATCH BOX */
+.mb{border:1px solid var(--bb);border-radius:7px;margin:3px 2px;overflow:hidden;background:white}
+.mb.clickable:hover{border-color:var(--bm);box-shadow:0 0 0 2px rgba(24,95,165,.15);cursor:pointer}
+.mc{padding:5px 8px;font-size:12px;min-height:30px;display:flex;align-items:center;gap:4px}
+.mc.win{background:var(--bl);color:var(--bm);font-weight:700}
+.mc.bye{background:#f5f5f5;color:#aaa;font-style:italic}
+.mc-inp{flex:1;border:none;background:transparent;font-size:12px;font-family:inherit;outline:none;color:var(--tp);min-width:0}
+.mc-inp::placeholder{color:#ccc}
+.mdiv{height:1px;background:var(--bb)}
+.mscore{font-size:10px;color:var(--ok);padding:3px 8px;background:#e8f5ee;border-top:1px solid #c3e6cb;text-align:center;font-weight:600}
+.sb{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:8px;font-weight:700;flex-shrink:0}
+
+/* RR */
+.rr-wrap{padding:12px}
+.rr-pairs{margin-bottom:14px}
+.rr-pr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rr-num{width:26px;height:26px;border-radius:50%;background:var(--bm);color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rr-inp{flex:1;padding:7px 10px;border:1px solid var(--bb);border-radius:6px;font-size:13px;font-family:inherit;outline:none}
+.rr-inp:focus{border-color:var(--bm)}
+.rr-grid{display:grid;gap:6px;margin-top:10px}
+.rr-m{border:1px solid var(--bb);border-radius:6px;padding:8px;background:white;cursor:pointer;text-align:center;transition:all .15s}
+.rr-m:hover{border-color:var(--bm);background:var(--bl)}
+.rr-m.has-result{border-color:#71c99e;background:var(--okb)}
+.rr-m .vl{font-size:10px;color:#888;margin-bottom:3px}
+.rr-m .pn{font-size:12px;color:var(--bd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr-m .sc{font-size:10px;color:var(--ok);margin-top:3px;font-weight:600}
+
+/* MODAL */
+#mo{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:16px}
+#mo.open{display:flex}
+#modal{background:white;border-radius:12px;padding:20px;width:100%;max-width:440px;max-height:92vh;overflow-y:auto}
+#modal h3{color:var(--bd);font-size:15px;margin-bottom:4px}
+#modal .m-sub{font-size:11px;color:#888;margin-bottom:14px}
+.sg{display:grid;grid-template-columns:1fr 50px 50px 50px;gap:6px;align-items:center;margin-bottom:10px}
+.sg .sh{font-size:11px;font-weight:700;color:var(--bm);text-align:center}
+.sg .pn{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0}
+.sg .pn.wp{color:var(--bm);font-weight:700}
+.si{width:44px;padding:5px 2px;text-align:center;border:1px solid var(--bb);border-radius:5px;font-size:14px;font-family:inherit}
+.si:focus{border-color:var(--bm);outline:none}
+.tb-sec{background:var(--bl);border-radius:6px;padding:10px;margin-bottom:10px}
+.tb-sec h4{font-size:11px;color:var(--bm);font-weight:700;margin-bottom:8px}
+.tb-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.tb-row span{font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wb{background:var(--bl);border:1px solid var(--bb);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px;color:var(--bm);font-weight:700;text-align:center}
+.mbts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+/* OOP */
+.day-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;font-weight:700;font-size:13px;color:white;margin-bottom:8px;border-radius:6px}
+.day-hdr.d1{background:var(--bm)}
+.day-hdr.d2{background:#b05000}
+.al-w{background:var(--wnb);border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--wn)}
+.al-ok{background:var(--okb);border:1px solid #71c99e;border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--ok)}
+.oop-wrap{overflow-x:auto}
+.oop-t{border-collapse:collapse;width:100%;font-size:11px;min-width:400px}
+.oop-t th{background:var(--bd);color:white;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap}
+.oop-t td{padding:3px;border-bottom:1px solid var(--bb);vertical-align:top}
+.oop-t td.sl{background:var(--bl);color:var(--bm);font-weight:700;font-size:11px;padding:4px 8px;white-space:nowrap}
+.oc{border:1px solid var(--bb);border-radius:5px;padding:5px 6px;min-height:66px;background:white}
+.oc.fc{border-color:#e67e00;background:#fff8f0}
+.oc.sc{border-color:var(--bm);background:var(--bl)}
+.oc .cc{font-size:9px;font-weight:700;margin-bottom:2px;color:#888}
+.oc.fc .cc{color:#cc6e00}.oc.sc .cc{color:var(--bm)}
+.oc .cp{font-size:10px;color:var(--bd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc .cv{font-size:9px;color:#aaa;margin:1px 0}
+.oc .csc{font-size:10px;color:var(--ok);font-weight:600;margin-top:3px;text-align:center}
+.ec{color:#ccc;text-align:center;font-size:13px;padding:8px}
+
+/* PUBLIC */
+#pub-bar{background:var(--bl);border-bottom:1px solid var(--bb);padding:8px 14px;display:flex;justify-content:space-between;align-items:center}
+#pub-bar span{font-size:12px;color:var(--bm);font-weight:600}
+.pub-sp{margin-top:20px;padding:14px;background:#f0f4fa;border-radius:8px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.sp-big{width:90px;height:36px;background:#dce8f5;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#99a}
+
+@media print{
+  body{background:white}
+  #nav,#back-btn,.btn,#mo,#pub-bar,.draw-size-bar{display:none!important}
+  .card{box-shadow:none;page-break-inside:avoid}
+  .draw-wrap{overflow:visible}
+}
+
+/* SHARE MODAL */
+#share-mo{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:2000;align-items:center;justify-content:center;padding:16px}
+#share-mo.open{display:flex}
+#share-box{background:white;border-radius:14px;padding:22px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
+#share-box h3{color:var(--bd);font-size:16px;margin-bottom:6px}
+#share-box .sh-sub{font-size:11px;color:#888;margin-bottom:14px}
+.sh-section{background:#f8faff;border:1px solid var(--bb);border-radius:8px;padding:12px;margin-bottom:10px}
+.sh-section h4{font-size:12px;font-weight:700;color:var(--bm);margin-bottom:8px}
+.sh-url{width:100%;padding:8px 10px;border:1px solid var(--bb);border-radius:6px;font-size:11px;font-family:monospace;resize:none;color:#333;background:white;margin-bottom:8px}
+.sh-btns{display:flex;gap:6px;flex-wrap:wrap}
+#qr-canvas{display:block;margin:10px auto 0;border-radius:6px}
+.sh-warn{font-size:10px;color:#e67e00;margin-top:6px;line-height:1.5}
+.view-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#e8f5ee;color:var(--ok);margin-left:6px}
+/* Sync status bar */
+#sync-bar{display:none;align-items:center;gap:8px;padding:5px 14px;font-size:11px;border-bottom:1px solid var(--bb);background:#f0f4fa}
+#sync-bar.active{display:flex}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .3s}
+.sync-dot.ok{background:var(--ok)}
+.sync-dot.syncing{background:#e67e00;animation:pulse .8s infinite}
+.sync-dot.err{background:#dc3545}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sync-api-input{flex:1;padding:5px 8px;border:1px solid var(--bb);border-radius:5px;font-size:11px;font-family:monospace;outline:none}
+.sync-api-input:focus{border-color:var(--bm)}
+.rt-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#e8f5ee;color:var(--ok);border:1px solid #71c99e}
+
+
+/* EXPORT/IMPORT */
+.export-box{background:#1a1a2e;border-radius:6px;padding:10px;margin-bottom:8px}
+.export-txt{width:100%;height:80px;background:#0d0d1a;color:#7fffb2;border:1px solid #333;border-radius:5px;font-family:monospace;font-size:10px;padding:6px;resize:none}
+.import-txt{width:100%;height:60px;border:1px solid var(--bb);border-radius:5px;font-family:monospace;font-size:10px;padding:6px;resize:none;outline:none}
+.import-txt:focus{border-color:var(--bm)}
+.gh-steps{background:#f8faff;border-left:3px solid var(--bm);border-radius:0 6px 6px 0;padding:10px 12px;font-size:11px;line-height:1.8;color:#333}
+.gh-steps a{color:var(--bm)}
+
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div id="hdr-top">
+    <div id="logo-box">
+      <div id="jpa-logo">JPA<br>LOGO</div>
+      <div id="ttl">
+        <h1 id="disp-title">日本パデル協会 全国ベテラン大会</h1>
+        <p id="disp-venue">会場・日程未設定</p>
+      </div>
+    </div>
+    <div id="sponsors">
+      <div class="sp-slot">SPONSOR</div><div class="sp-slot">SPONSOR</div>
+      <div class="sp-slot">SPONSOR</div><div class="sp-slot">SPONSOR</div>
+    </div>
+  </div>
+  <div id="nav">
+    <button class="nb active" onclick="nav('settings')">⚙ 設定</button>
+    <button class="nb" onclick="nav('draws')">🎯 ドロー編集</button>
+    <button class="nb" onclick="nav('oop')">📋 運営(OOP)</button>
+    <button class="nb" onclick="nav('public')">👁 回覧用</button>
+    <button class="nb" onclick="openShare()" style="background:rgba(255,255,255,.12);flex:0.8">🔗 共有</button>
+  </div>
+</div>
+
+<div id="body">
+  <button id="back-btn" onclick="goBack()">← 戻る</button>
+  <!-- Sync status bar (shown when cloud sync is active) -->
+  <div id="sync-bar">
+    <span class="sync-dot" id="sync-dot"></span>
+    <span id="sync-msg" style="color:#555;flex:1">クラウド同期中...</span>
+    <span id="sync-last" style="color:#aaa"></span>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="scr-settings" class="scr active">
+    <div class="card">
+      <div class="ch">大会基本設定</div>
+      <div class="cb">
+        <div class="fr"><label>大会名</label><input id="s-name" type="text" placeholder="日本パデル協会 全国ベテラン大会"></div>
+        <div class="fr"><label>会場</label><input id="s-venue" type="text" placeholder="会場名を入力"></div>
+        <div class="fr"><label>1日目</label><input id="s-d1" type="date"></div>
+        <div class="fr"><label>2日目</label><input id="s-d2" type="date"></div>
+        <div class="fr"><label>コート数</label><input id="s-courts" type="number" min="1" max="20" value="4" style="max-width:80px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn bp" onclick="saveSettings()">保存する</button>
+          <button class="btn bd2" onclick="resetAllData()" style="margin-left:auto">⚠️ 全データリセット</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch">カテゴリー管理</div>
+      <div class="cb">
+        <p style="font-size:11px;color:#888;margin-bottom:10px">3組未満のカテゴリーは隣接カテゴリーと統合できます（2カテゴリーまで）。「統合」を押した後、統合先を選択してください。</p>
+        <div id="cat-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWS -->
+  <div id="scr-draws" class="scr">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="cat-tabs"></div>
+      <!-- Draw size selector bar -->
+      <div class="draw-size-bar" id="draw-size-bar">
+        <span class="dsl">ドロー枠数:</span>
+        <div class="dsz-btns">
+          <button class="dsz" data-sz="rr" onclick="setDrawSize('rr')">3組<br><span style="font-size:9px;opacity:.7">総当たり</span></button>
+          <button class="dsz" data-sz="4" onclick="setDrawSize(4)">4組</button>
+          <button class="dsz" data-sz="8" onclick="setDrawSize(8)">8組</button>
+          <button class="dsz" data-sz="12" onclick="setDrawSize(12)">12組</button>
+          <button class="dsz" data-sz="16" onclick="setDrawSize(16)">16組</button>
+        </div>
+        <span class="draw-size-note" id="draw-size-note"></span>
+      </div>
+      <div class="draw-info">
+        <span id="di-label" style="font-weight:700;color:var(--bd)"></span>
+        <span id="di-fmt" style="font-size:11px;color:var(--bm)"></span>
+        <span style="display:flex;gap:6px;margin-left:auto">
+          <button class="btn bd2 sm" onclick="resetCatScores()" title="このカテゴリーのスコアと勝敗をリセット">🔄 スコアリセット</button>
+          <button class="btn bd2 sm" style="background:#7b1c1c" onclick="resetCatAll()" title="このカテゴリーのペア名・スコア・勝敗をすべてリセット">🗑 全リセット</button>
+        </span>
+      </div>
+      <div id="seed-legend-bar"></div>
+      <div id="draw-body"></div>
+    </div>
+  </div>
+
+  <!-- OOP -->
+  <div id="scr-oop" class="scr">
+    <div id="oop-alerts"></div>
+    <div class="day-hdr d1">📅 1日目（1R・2R）</div>
+    <div class="card">
+      <div class="cb" style="padding:0"><div class="oop-wrap" id="oop-d1"></div></div>
+    </div>
+    <div class="day-hdr d2">📅 2日目（準決勝・決勝）</div>
+    <div id="oop-d2-alert"></div>
+    <div class="card">
+      <div class="cb" style="padding:0"><div class="oop-wrap" id="oop-d2"></div></div>
+    </div>
+  </div>
+
+  <!-- PUBLIC -->
+  <div id="scr-public" class="scr">
+    <div id="pub-bar">
+      <span>📋 回覧用（閲覧専用）</span>
+      <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
+    </div>
+    <div id="pub-body" style="padding:12px"></div>
+  </div>
+</div>
+
+<!-- SCORE MODAL -->
+<div id="mo">
+  <div id="modal">
+    <h3 id="modal-title">スコア入力</h3>
+    <div class="m-sub" id="modal-sub"></div>
+    <div class="sg">
+      <div></div><div class="sh">1S</div><div class="sh">2S</div><div class="sh">3S</div>
+      <div class="pn" id="mp1"></div>
+      <input class="si" id="s1p1" type="number" min="0" max="7" oninput="calcW()">
+      <input class="si" id="s2p1" type="number" min="0" max="7" oninput="calcW()">
+      <input class="si" id="s3p1" type="number" min="0" max="7" oninput="calcW()">
+      <div class="pn" id="mp2"></div>
+      <input class="si" id="s1p2" type="number" min="0" max="7" oninput="calcW()">
+      <input class="si" id="s2p2" type="number" min="0" max="7" oninput="calcW()">
+      <input class="si" id="s3p2" type="number" min="0" max="7" oninput="calcW()">
+    </div>
+    <div id="tb-sec" class="tb-sec" style="display:none">
+      <h4>ファイナルセット — 10ポイントタイブレーク（50+/55+/60+）</h4>
+      <div class="tb-row"><span id="tb1"></span><input class="si" id="tbp1" type="number" min="0" max="10" oninput="calcW()"></div>
+      <div class="tb-row"><span id="tb2"></span><input class="si" id="tbp2" type="number" min="0" max="10" oninput="calcW()"></div>
+    </div>
+    <div id="wb" class="wb" style="display:none"></div>
+    <div class="mbts">
+      <button class="btn bd2 sm" onclick="clearScore()" style="margin-right:auto">結果クリア</button>
+      <button class="btn bs" onclick="closeModal()">キャンセル</button>
+      <button class="btn bp" onclick="saveScore()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  SEED HELPERS
+// ══════════════════════════════════════
+const SD_COLORS=['#FFD700','#C0C0C0','#cd7f32','#a0d8ef'];
+const SD_TC=['#7a5800','#444','#5a2d00','#1a4a6e'];
+
+function seedCount(sz){
+  if(sz<=4)return 2; if(sz<=8)return 2; return 4;
+}
+// Standard seeding positions (0-indexed) for given bracket size
+function seedPositions(sz){
+  if(sz===4) return [0,3];
+  if(sz===8) return [0,7];
+  if(sz===16)return [0,15,8,7];
+  return [0,sz-1];
+}
+function getSeedNo(slot,seedPos){
+  const i=seedPos.indexOf(slot); return i>=0?i+1:0;
+}
+function makeSeedBadge(n){
+  const s=document.createElement('span');
+  s.className='sb';s.style.background=SD_COLORS[n-1]||'#ccc';s.style.color=SD_TC[n-1]||'#333';
+  s.textContent='S'+n; return s;
+}
+
+// ══════════════════════════════════════
+//  DRAW SIZE LOGIC
+// ══════════════════════════════════════
+// drawSize per catId stored in draw.drawSize
+// 'rr' = round-robin (3 pairs), 4/8/12/16 = tournament
+
+const VALID_SIZES=['rr',4,8,12,16];
+
+function getDrawSize(catId){
+  const d=S.draws[catId];
+  if(!d)return 'rr';
+  if(d.drawSize!==undefined)return d.drawSize;
+  // Auto-detect from filled pairs
+  const f=(d.pairs||[]).filter(p=>p&&p.trim()).length;
+  if(f===0)return 'rr';
+  if(f<=3)return 'rr';
+  if(f<=4)return 4;
+  if(f<=8)return 8;
+  if(f<=12)return 12;
+  return 16;
+}
+
+function setDrawSize(sz){
+  if(!curCat)return;
+  if(!S.draws[curCat])S.draws[curCat]=newDraw();
+  const draw=S.draws[curCat];
+  const prev=draw.drawSize;
+  // Warn if shrinking would lose data
+  if(sz!=='rr'){
+    const f=(draw.pairs||[]).filter(p=>p&&p.trim()).length;
+    if(f>sz){
+      if(!confirm(sz+'組枠に変更すると、枠'+sz+'以降のペア名データが失われます。よろしいですか？'))return;
+      // Trim pairs & clear scores/winners
+      draw.pairs=(draw.pairs||[]).slice(0,sz);
+      draw.scores={};draw.winners={};
+    }
+  }
+  draw.drawSize=sz;
+  persist();
+  renderDraws();
+}
+
+function updateSizeBtns(sz){
+  document.querySelectorAll('.dsz').forEach(b=>{
+    const bsz=b.dataset.sz==='rr'?'rr':parseInt(b.dataset.sz);
+    const active=(sz==='rr'&&bsz==='rr')||(sz===bsz);
+    b.classList.toggle('active',active);
+    if(bsz==='rr') b.classList.toggle('rr-mode',active);
+  });
+  // Note
+  const note=document.getElementById('draw-size-note');
+  if(sz==='rr') note.textContent='（3組 総当たりリーグ）';
+  else{
+    const sc=seedCount(sz);
+    note.textContent='シード'+sc+'→ 自動配置 | BYEは自動挿入';
+  }
+}
+
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+const DEFS=[
+  {id:'m35',label:'男子35+',gender:'M',age:35},{id:'m40',label:'男子40+',gender:'M',age:40},
+  {id:'m45',label:'男子45+',gender:'M',age:45},{id:'m50',label:'男子50+',gender:'M',age:50},
+  {id:'m55',label:'男子55+',gender:'M',age:55},{id:'m60',label:'男子60+',gender:'M',age:60},
+  {id:'f35',label:'女子35+',gender:'F',age:35},{id:'f40',label:'女子40+',gender:'F',age:40},
+  {id:'f45',label:'女子45+',gender:'F',age:45},{id:'f50',label:'女子50+',gender:'F',age:50},
+  {id:'f55',label:'女子55+',gender:'F',age:55},{id:'f60',label:'女子60+',gender:'F',age:60},
+];
+
+function newDraw(){return {pairs:[],scores:{},winners:{},drawSize:undefined};}
+
+let S={
+  settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4},
+  cats:DEFS.map(c=>({...c,active:true})),
+  draws:{}
+};
+DEFS.forEach(c=>{S.draws[c.id]=newDraw();});
+
+try{const d=localStorage.getItem('jpa_v5');if(d){const p=JSON.parse(d);if(p&&p.settings)S=p;}}catch(e){}
+function persist(){try{localStorage.setItem('jpa_v5',JSON.stringify(S));}catch(e){}}
+
+// ══════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════
+let cur='settings',hist=[];
+function nav(s){hist.push(cur);show(s);}
+function goBack(){if(hist.length)show(hist.pop());}
+function show(s){
+  cur=s;
+  document.querySelectorAll('.scr').forEach(el=>el.classList.remove('active'));
+  document.getElementById('scr-'+s).classList.add('active');
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('active',['settings','draws','oop','public'][i]===s));
+  document.getElementById('back-btn').style.display=(hist.length&&s!=='public')?'inline-block':'none';
+  if(s==='settings')renderSettings();
+  if(s==='draws')renderDraws();
+  if(s==='oop')renderOOP();
+  if(s==='public')renderPublic();
+}
+
+// ══════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════
+function renderSettings(){
+  const s=S.settings;
+  document.getElementById('s-name').value=s.name||'';
+  document.getElementById('s-venue').value=s.venue||'';
+  document.getElementById('s-d1').value=s.d1||'';
+  document.getElementById('s-d2').value=s.d2||'';
+  document.getElementById('s-courts').value=s.courts||4;
+  renderCatGrid();
+}
+function saveSettings(){
+  S.settings.name=document.getElementById('s-name').value;
+  S.settings.venue=document.getElementById('s-venue').value;
+  S.settings.d1=document.getElementById('s-d1').value;
+  S.settings.d2=document.getElementById('s-d2').value;
+  S.settings.courts=parseInt(document.getElementById('s-courts').value)||4;
+  persist();updateHeader();
+  const b=event.target;b.textContent='✓ 保存しました';setTimeout(()=>b.textContent='保存する',2000);
+}
+function updateHeader(){
+  const s=S.settings;
+  document.getElementById('disp-title').textContent=s.name||'日本パデル協会 全国ベテラン大会';
+  const p=[s.venue,s.d1,s.d2?'〜'+s.d2:''].filter(Boolean);
+  document.getElementById('disp-venue').textContent=p.join('　')||'会場・日程未設定';
+}
+
+let mergeFrom=null;
+function renderCatGrid(){
+  const g=document.getElementById('cat-grid');g.innerHTML='';
+  S.cats.forEach(cat=>{
+    const n=pairCount(cat.id);const canMerge=n<3&&!cat.merged;
+    const d=document.createElement('div');
+    d.className='ci'+(cat.active?'':' off');
+    d.innerHTML=`<div class="ci-toggle"><input type="checkbox" ${cat.active?'checked':''} onchange="toggleCat('${cat.id}',this.checked)"></div>
+      <div class="ci-name">${cat.label}</div>
+      <div class="ci-cnt">${n}組 / ${drawSizeLabel(cat.id)}</div>
+      <div class="ci-acts">
+        ${cat.active&&canMerge?`<button class="btn sm ${mergeFrom===cat.id?'bo':mergeFrom?'bp':'bs'}" onclick="handleMerge('${cat.id}')">${mergeFrom&&mergeFrom!==cat.id?'ここに統合':mergeFrom===cat.id?'キャンセル':'統合'}</button>`:''}
+        ${cat.merged?`<button class="btn sm bd2" onclick="splitCat('${cat.id}')">分割</button>`:''}
+      </div>`;
+    g.appendChild(d);
+  });
+}
+function drawSizeLabel(id){
+  const sz=getDrawSize(id);
+  return sz==='rr'?'総当たり':sz+'組枠';
+}
+function toggleCat(id,v){const c=S.cats.find(x=>x.id===id);if(c){c.active=v;persist();renderCatGrid();}}
+function pairCount(id){const d=S.draws[id];return d?(d.pairs||[]).filter(p=>p&&p.trim()).length:0;}
+function handleMerge(id){
+  if(!mergeFrom){mergeFrom=id;renderCatGrid();return;}
+  if(mergeFrom===id){mergeFrom=null;renderCatGrid();return;}
+  const c1=S.cats.find(c=>c.id===mergeFrom),c2=S.cats.find(c=>c.id===id);
+  if(!c1||!c2){mergeFrom=null;renderCatGrid();return;}
+  const nid='mrg_'+mergeFrom+'__'+id;
+  const nl=c1.label+'/'+c2.label.replace(/[男女]子/,'');
+  const idx=S.cats.findIndex(c=>c.id===mergeFrom);
+  S.cats=S.cats.filter(c=>c.id!==mergeFrom&&c.id!==id);
+  S.cats.splice(Math.max(0,idx-1),0,{id:nid,label:nl,gender:c1.gender,age:Math.min(c1.age,c2.age),active:true,merged:[mergeFrom,id]});
+  if(!S.draws[nid])S.draws[nid]=newDraw();
+  mergeFrom=null;persist();renderCatGrid();
+}
+function splitCat(id){
+  const cat=S.cats.find(c=>c.id===id);if(!cat||!cat.merged)return;
+  const [id1,id2]=cat.merged;
+  const o1=DEFS.find(c=>c.id===id1)||{id:id1,label:id1,age:35};
+  const o2=DEFS.find(c=>c.id===id2)||{id:id2,label:id2,age:35};
+  const idx=S.cats.findIndex(c=>c.id===id);
+  S.cats.splice(idx,1,{...o1,active:true},{...o2,active:true});
+  if(!S.draws[id1])S.draws[id1]=newDraw();
+  if(!S.draws[id2])S.draws[id2]=newDraw();
+  persist();renderCatGrid();
+}
+
+// ══════════════════════════════════════
+//  DRAWS
+// ══════════════════════════════════════
+let curCat=null;
+
+function renderDraws(){
+  const cats=S.cats.filter(c=>c.active);
+  if(!cats.length){
+    document.getElementById('draw-body').innerHTML='<div style="padding:20px;color:#999;text-align:center">有効なカテゴリーがありません</div>';
+    return;
+  }
+  if(!curCat||!cats.find(c=>c.id===curCat))curCat=cats[0].id;
+
+  // Tabs
+  const tabs=document.getElementById('cat-tabs');tabs.innerHTML='';
+  cats.forEach(cat=>{
+    const b=document.createElement('button');
+    b.className='ct'+(cat.id===curCat?' active':'');
+    b.textContent=cat.label;
+    b.onclick=()=>{curCat=cat.id;renderDraws();};
+    tabs.appendChild(b);
+  });
+
+  const cat=cats.find(c=>c.id===curCat);
+  if(!S.draws[curCat])S.draws[curCat]=newDraw();
+
+  const sz=getDrawSize(curCat);
+  updateSizeBtns(sz);
+
+  document.getElementById('di-label').textContent=cat.label;
+
+  if(sz==='rr'){
+    document.getElementById('di-fmt').textContent='総当たりリーグ（3組）';
+    document.getElementById('seed-legend-bar').innerHTML='';
+    buildRR(curCat,cat);
+  }else{
+    const filled=(S.draws[curCat].pairs||[]).filter(p=>p&&p.trim()).length;
+    const sc=seedCount(sz);
+    document.getElementById('di-fmt').textContent='トーナメント（'+sz+'組枠 / 入力済:'+filled+'組 / シード:'+sc+'）';
+    buildTournament(curCat,cat,sz);
+  }
+}
+
+// ── ROUND ROBIN ──
+function buildRR(catId,cat){
+  const draw=S.draws[catId];
+  const body=document.getElementById('draw-body');body.innerHTML='';
+  const wrap=document.createElement('div');wrap.className='rr-wrap';
+  const pd=document.createElement('div');pd.className='rr-pairs';
+  const lbl=document.createElement('div');
+  lbl.style.cssText='font-size:11px;font-weight:700;color:var(--bm);margin-bottom:10px';
+  lbl.textContent='ペア名を入力してください（3組 総当たりリーグ）';
+  pd.appendChild(lbl);
+  const matchDiv=document.createElement('div');
+  for(let i=0;i<3;i++){
+    const row=document.createElement('div');row.className='rr-pr';
+    const num=document.createElement('div');num.className='rr-num';num.textContent=i+1;
+    const inp=document.createElement('input');inp.className='rr-inp';inp.placeholder='ペア'+(i+1)+'の名前';
+    inp.value=(draw.pairs||[])[i]||'';
+    inp.addEventListener('input',(function(idx){return function(){
+      if(!S.draws[catId].pairs)S.draws[catId].pairs=[];
+      while(S.draws[catId].pairs.length<=idx)S.draws[catId].pairs.push('');
+      S.draws[catId].pairs[idx]=this.value;persist();
+      updateRRMatches(catId,matchDiv);
+    };})(i));
+    row.appendChild(num);row.appendChild(inp);pd.appendChild(row);
+  }
+  wrap.appendChild(pd);wrap.appendChild(matchDiv);
+  updateRRMatches(catId,matchDiv);
+  body.appendChild(wrap);
+}
+
+function updateRRMatches(catId,container){
+  const draw=S.draws[catId];
+  const pairs=(draw.pairs||[]).slice(0,3);
+  const lbl=document.createElement('div');
+  lbl.style.cssText='font-size:11px;font-weight:700;color:var(--bm);margin-bottom:6px';
+  lbl.textContent='対戦表（タップでスコア入力）';
+  const grid=document.createElement('div');
+  grid.className='rr-grid';
+  grid.style.gridTemplateColumns='repeat(3,1fr)';
+  [[0,1],[0,2],[1,2]].forEach(([a,b],mi)=>{
+    const key='rr'+mi;
+    const p1=pairs[a]||'ペア'+(a+1);const p2=pairs[b]||'ペア'+(b+1);
+    const w=draw.winners&&draw.winners[key];
+    const sc=draw.scores&&draw.scores[key];
+    const scTxt=sc?fmtScore(sc):'';
+    const m=document.createElement('div');
+    m.className='rr-m'+(sc?' has-result':'');
+    m.innerHTML='<div class="vl">'+(a+1)+' vs '+(b+1)+'</div>'
+      +'<div class="pn" style="'+(w===0?'font-weight:700;color:var(--bm)':'')+'">'+esc(p1)+'</div>'
+      +'<div style="font-size:9px;color:#aaa">vs</div>'
+      +'<div class="pn" style="'+(w===1?'font-weight:700;color:var(--bm)':'')+'">'+esc(p2)+'</div>'
+      +(scTxt?'<div class="sc">'+esc(scTxt)+'</div>':'<div style="font-size:9px;color:#ccc;margin-top:3px">タップでスコア入力</div>');
+    const cp1=p1,cp2=p2,ck=key,cc=catId;
+    m.onclick=()=>openModal(cc,ck,cp1,cp2);
+    grid.appendChild(m);
+  });
+  container.innerHTML='';container.appendChild(lbl);container.appendChild(grid);
+}
+
+// ── TOURNAMENT ──
+function np2(x){let p=1;while(p<x)p*=2;return p;}
+
+function roundNames(rounds){
+  if(rounds===2)return ['1R','決勝'];
+  if(rounds===3)return ['1R','準決勝','決勝'];
+  if(rounds===4)return ['1R','2R','準決勝','決勝'];
+  return Array.from({length:rounds},(_,i)=>'R'+(i+1));
+}
+function getDay(ri,totalRounds){
+  // Last 2 rounds (SF + Final) are always day 2.
+  // For a 2-round draw (4-draw: 1R + Final) only the Final is day 2.
+  if(totalRounds<=2) return ri===totalRounds-1?2:1;
+  return ri>=totalRounds-2?2:1;
+}
+
+function buildTournament(catId,cat,sz){
+  const draw=S.draws[catId];
+  if(!draw.pairs)draw.pairs=[];
+  if(!draw.scores)draw.scores={};
+  if(!draw.winners)draw.winners={};
+
+  // Ensure pairs array matches draw size
+  while(draw.pairs.length<sz)draw.pairs.push('');
+
+  const rounds=Math.log2(np2(sz));
+  const nSeeds=seedCount(sz);
+  const seedPos=seedPositions(sz).slice(0,nSeeds);
+  const rNames=roundNames(rounds);
+
+  // Seed legend
+  const lb=document.getElementById('seed-legend-bar');
+  let legHTML='<div class="seed-legend"><strong style="color:var(--bd);margin-right:4px">シード:</strong>';
+  for(let i=0;i<nSeeds;i++){
+    legHTML+=`<span class="sb" style="background:${SD_COLORS[i]};color:${SD_TC[i]}">S${i+1}</span><span style="font-size:10px;margin-right:8px"> → 枠${seedPos[i]+1}</span>`;
+  }
+  legHTML+='<span style="font-size:10px;color:#aaa;margin-left:4px">（空欄はBYE扱い）</span></div>';
+  lb.innerHTML=legHTML;
+
+  const body=document.getElementById('draw-body');body.innerHTML='';
+  const wrap=document.createElement('div');wrap.className='draw-wrap';
+  const rDiv=document.createElement('div');rDiv.className='t-rounds';
+
+  for(let ri=0;ri<rounds;ri++){
+    const matchCount=sz/Math.pow(2,ri+1);
+    const col=document.createElement('div');col.className='r-col';
+    const day=getDay(ri,rounds);
+    const hdr=document.createElement('div');
+    hdr.className='r-hdr '+(day===1?'day1':'day2');
+    hdr.textContent=rNames[ri]+(day===1?' [1日目]':' [2日目]');
+    col.appendChild(hdr);
+
+    for(let mi=0;mi<matchCount;mi++){
+      const key='r'+ri+'_m'+mi;
+      const winIdx=(draw.winners&&draw.winners[key]!==undefined)?draw.winners[key]:undefined;
+      const score=draw.scores&&draw.scores[key];
+      const box=document.createElement('div');box.className='mb';
+
+      if(ri===0){
+        const sa=mi*2,sb=mi*2+1;
+        const seedA=getSeedNo(sa,seedPos);
+        const seedB=getSeedNo(sb,seedPos);
+        const vA=draw.pairs[sa]&&draw.pairs[sa].trim();
+        const vB=draw.pairs[sb]&&draw.pairs[sb].trim();
+
+        // Auto BYE winner
+        if(vA&&!vB&&winIdx===undefined){draw.winners[key]=0;persist();}
+        if(!vA&&vB&&winIdx===undefined){draw.winners[key]=1;persist();}
+
+        // Cell A
+        const ca=document.createElement('div');ca.className='mc'+(winIdx===0?' win':'');
+        if(seedA>0)ca.appendChild(makeSeedBadge(seedA));
+        const inpA=document.createElement('input');inpA.className='mc-inp';
+        inpA.placeholder='ペア名を入力';
+        inpA.value=draw.pairs[sa]||'';
+        inpA.addEventListener('input',(function(ci,si){return function(){
+          S.draws[ci].pairs[si]=this.value;persist();
+          const f=S.draws[ci].pairs.filter(p=>p&&p.trim()).length;
+          document.getElementById('di-fmt').textContent='トーナメント（'+sz+'組枠 / 入力済:'+f+'組 / シード:'+seedCount(sz)+'）';
+          renderCatGrid();
+        };})(catId,sa));
+        ca.appendChild(inpA);
+
+        const dv=document.createElement('div');dv.className='mdiv';
+
+        // Cell B
+        const cb=document.createElement('div');cb.className='mc'+(winIdx===1?' win':'');
+        if(seedB>0)cb.appendChild(makeSeedBadge(seedB));
+        const inpB=document.createElement('input');inpB.className='mc-inp';
+        inpB.placeholder='ペア名を入力';
+        inpB.value=draw.pairs[sb]||'';
+        inpB.addEventListener('input',(function(ci,si){return function(){
+          S.draws[ci].pairs[si]=this.value;persist();
+          const f=S.draws[ci].pairs.filter(p=>p&&p.trim()).length;
+          document.getElementById('di-fmt').textContent='トーナメント（'+sz+'組枠 / 入力済:'+f+'組 / シード:'+seedCount(sz)+'）';
+          renderCatGrid();
+        };})(catId,sb));
+        cb.appendChild(inpB);
+
+        box.appendChild(ca);box.appendChild(dv);box.appendChild(cb);
+
+        // Score row + click to score (only when both pairs named)
+        if(vA&&vB){
+          box.classList.add('clickable');
+          if(score){
+            const sc=document.createElement('div');sc.className='mscore';
+            sc.textContent=fmtScore(score);box.appendChild(sc);
+          }else{
+            const hint=document.createElement('div');hint.className='mscore';
+            hint.style.cssText='color:#bbb;background:#fafafa';
+            hint.textContent='タップでスコア入力';box.appendChild(hint);
+          }
+          const cp1=vA,cp2=vB,ck=key,cc=catId;
+          box.onclick=(e)=>{if(e.target.tagName==='INPUT')return;openModal(cc,ck,cp1,cp2);};
+        }
+
+      }else{
+        const p1=getSlot(draw,ri,mi,0,sz);
+        const p2=getSlot(draw,ri,mi,1,sz);
+        const isBye1=p1==='BYE',isBye2=p2==='BYE';
+        const canClick=p1&&!isBye1&&p2&&!isBye2;
+        if(canClick)box.classList.add('clickable');
+
+        const c1=document.createElement('div');c1.className='mc'+(winIdx===0?' win':isBye1?' bye':'');
+        c1.textContent=isBye1?'BYE':p1||'未決定';
+        const dv=document.createElement('div');dv.className='mdiv';
+        const c2=document.createElement('div');c2.className='mc'+(winIdx===1?' win':isBye2?' bye':'');
+        c2.textContent=isBye2?'BYE':p2||'未決定';
+        box.appendChild(c1);box.appendChild(dv);box.appendChild(c2);
+
+        if(score){
+          const sc=document.createElement('div');sc.className='mscore';
+          sc.textContent=fmtScore(score);box.appendChild(sc);
+        }
+        if(canClick){
+          const cp1=p1,cp2=p2,ck=key,cc=catId;
+          box.onclick=()=>openModal(cc,ck,cp1,cp2);
+        }
+        // Auto-advance BYE
+        if((isBye1||isBye2)&&winIdx===undefined){
+          draw.winners[key]=isBye1?1:0;persist();
+        }
+      }
+      col.appendChild(box);
+    }
+    rDiv.appendChild(col);
+  }
+  wrap.appendChild(rDiv);body.appendChild(wrap);
+}
+
+function getSlot(draw,r,mi,side,sz){
+  if(r===0){
+    const v=(draw.pairs||[])[mi*2+side];
+    if(!v||!v.trim())return 'BYE';
+    return v;
+  }
+  // Each match in round r draws from two matches in round r-1.
+  // Match mi gets its slot-0 from r-1 match (mi*2+0), slot-1 from r-1 match (mi*2+1).
+  const prevMatch=mi*2+side;
+  const pk='r'+(r-1)+'_m'+prevMatch;
+  const w=draw.winners&&draw.winners[pk];
+  if(w===undefined||w===null)return null;
+  // w=0 → winner was side 0 of prevMatch; w=1 → winner was side 1
+  return w===0?getSlot(draw,r-1,prevMatch,0,sz):getSlot(draw,r-1,prevMatch,1,sz);
+}
+
+function fmtScore(s){
+  if(!s)return '';
+  const sets=[s.s1,s.s2,s.s3].filter(Boolean)
+    .map(a=>Array.isArray(a)?a.filter(v=>v!==null&&v!==undefined).join('-'):'').filter(Boolean);
+  if(s.tb&&Array.isArray(s.tb)&&s.tb.some(v=>v!==null&&v!==undefined)){
+    const tv=s.tb.filter(v=>v!==null&&v!==undefined);
+    if(tv.length===2)sets.push('[TB '+tv.join('-')+']');
+  }
+  return sets.join(' ');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ══════════════════════════════════════
+//  SCORE MODAL
+// ══════════════════════════════════════
+let MS={};
+function openModal(catId,key,p1,p2){
+  const cat=S.cats.find(c=>c.id===catId);
+  MS={catId,key,p1,p2,age:cat?cat.age:35};
+  document.getElementById('modal-title').textContent='スコア入力';
+  const rn=getRoundLabel(key,catId);
+  document.getElementById('modal-sub').textContent=(cat?cat.label:'')+(rn?' — '+rn:'');
+  document.getElementById('mp1').textContent=p1||'ペア1';
+  document.getElementById('mp2').textContent=p2||'ペア2';
+  document.getElementById('tb1').textContent=p1||'ペア1';
+  document.getElementById('tb2').textContent=p2||'ペア2';
+  document.getElementById('tb-sec').style.display=(cat&&cat.age>=50)?'block':'none';
+  ['s1p1','s2p1','s3p1','s1p2','s2p2','s3p2','tbp1','tbp2'].forEach(id=>document.getElementById(id).value='');
+  const ex=S.draws[catId]&&S.draws[catId].scores&&S.draws[catId].scores[key];
+  if(ex){
+    if(ex.s1){document.getElementById('s1p1').value=ex.s1[0]??'';document.getElementById('s1p2').value=ex.s1[1]??'';}
+    if(ex.s2){document.getElementById('s2p1').value=ex.s2[0]??'';document.getElementById('s2p2').value=ex.s2[1]??'';}
+    if(ex.s3){document.getElementById('s3p1').value=ex.s3[0]??'';document.getElementById('s3p2').value=ex.s3[1]??'';}
+    if(ex.tb){document.getElementById('tbp1').value=ex.tb[0]??'';document.getElementById('tbp2').value=ex.tb[1]??'';}
+  }
+  calcW();
+  document.getElementById('mo').classList.add('open');
+}
+function getRoundLabel(key,catId){
+  if(key.startsWith('rr'))return 'リーグ戦';
+  const sz=getDrawSize(catId);if(sz==='rr')return '';
+  const rounds=Math.log2(np2(sz));
+  const rNames=roundNames(rounds);
+  const ri=parseInt((key.split('_')[0]||'').replace('r',''));
+  return isNaN(ri)?'':rNames[ri]||'';
+}
+function closeModal(){document.getElementById('mo').classList.remove('open');}
+function gv(id){const v=document.getElementById(id).value;return v===''?null:parseInt(v);}
+function calcW(){
+  let w1=0,w2=0;
+  [[gv('s1p1'),gv('s1p2')],[gv('s2p1'),gv('s2p2')],[gv('s3p1'),gv('s3p2')]].forEach(([a,b])=>{
+    if(a!==null&&b!==null){if(a>b)w1++;else if(b>a)w2++;}
+  });
+  let winner=null;
+  if(w1>=2)winner=0;else if(w2>=2)winner=1;
+  else if(MS.age>=50){
+    const ta=gv('tbp1'),tb=gv('tbp2');
+    if(ta!==null&&tb!==null){if(ta>tb)winner=0;else if(tb>ta)winner=1;}
+  }
+  const wb=document.getElementById('wb');
+  if(winner!==null){
+    wb.style.display='block';
+    wb.textContent='🏆 勝者: '+(winner===0?(MS.p1||'ペア1'):(MS.p2||'ペア2'));
+    document.getElementById('mp1').classList.toggle('wp',winner===0);
+    document.getElementById('mp2').classList.toggle('wp',winner===1);
+  }else{
+    wb.style.display='none';
+    document.getElementById('mp1').classList.remove('wp');document.getElementById('mp2').classList.remove('wp');
+  }
+  return winner;
+}
+function saveScore(){
+  const {catId,key}=MS;
+  if(!S.draws[catId])S.draws[catId]=newDraw();
+  S.draws[catId].scores[key]={
+    s1:[gv('s1p1'),gv('s1p2')],s2:[gv('s2p1'),gv('s2p2')],
+    s3:[gv('s3p1'),gv('s3p2')],tb:[gv('tbp1'),gv('tbp2')]
+  };
+  const w=calcW();
+  if(w!==null){
+    S.draws[catId].winners[key]=w;
+    // Auto-clear downstream winners that depended on this match
+    propagateWinner(catId,key);
+  }
+  persist();closeModal();renderDraws();
+}
+function clearScore(){
+  const {catId,key}=MS;
+  if(!S.draws[catId])return;
+  delete S.draws[catId].scores[key];
+  delete S.draws[catId].winners[key];
+  // Also clear all downstream rounds that depended on this result
+  clearDownstream(catId,key);
+  persist();closeModal();renderDraws();
+}
+
+// Remove downstream winners/scores when a result changes
+function clearDownstream(catId,key){
+  if(key.startsWith('rr'))return; // RR has no downstream
+  const draw=S.draws[catId];if(!draw)return;
+  const sz=getDrawSize(catId);if(sz==='rr')return;
+  const rounds=Math.log2(np2(sz));
+  const ri=parseInt((key.split('_')[0]||'').replace('r',''));
+  const mi=parseInt((key.split('_')[1]||'').replace('m',''));
+  if(isNaN(ri)||isNaN(mi))return;
+  // Walk forward through all subsequent rounds
+  let curRi=ri+1, curMi=Math.floor(mi/2);
+  while(curRi<rounds){
+    const k='r'+curRi+'_m'+curMi;
+    delete draw.winners[k];
+    delete draw.scores[k];
+    curRi++;curMi=Math.floor(curMi/2);
+  }
+}
+function propagateWinner(catId,key){
+  // When a score is saved, downstream slots now have a new input.
+  // Clear scores/winners of any further-downstream matches to avoid stale data.
+  clearDownstream(catId,key);
+}
+
+// ── RESET FUNCTIONS ──
+function resetCatScores(){
+  if(!curCat)return;
+  if(!confirm('「'+( S.cats.find(c=>c.id===curCat)||{label:'このカテゴリー'}).label+'」のスコアと勝敗をリセットします。ペア名は保持されます。よろしいですか？'))return;
+  const draw=S.draws[curCat];if(!draw)return;
+  draw.scores={};draw.winners={};
+  persist();renderDraws();
+}
+function resetCatAll(){
+  if(!curCat)return;
+  if(!confirm('「'+(S.cats.find(c=>c.id===curCat)||{label:'このカテゴリー'}).label+'」のすべてのデータ（ペア名・スコア・勝敗）を削除します。よろしいですか？'))return;
+  S.draws[curCat]=newDraw();
+  persist();renderDraws();renderCatGrid();
+}
+function resetAllData(){
+  if(!confirm('⚠️ すべてのカテゴリーのドローデータをリセットします。\n設定（大会名・日程・コート数）は保持されます。\n\nこの操作は元に戻せません。実行しますか？'))return;
+  S.cats.forEach(cat=>{ S.draws[cat.id]=newDraw(); });
+  persist();renderCatGrid();
+  if(cur==='draws')renderDraws();
+  alert('全ドローデータをリセットしました。');
+}
+
+// ══════════════════════════════════════
+//  OOP – 2 DAY SPLIT
+// ══════════════════════════════════════
+function getCatMatches(cat){
+  const draw=S.draws[cat.id];if(!draw)return [];
+  const sz=getDrawSize(cat.id);
+  const res=[];
+  if(sz==='rr'){
+    const pairs=(draw.pairs||[]).slice(0,3);
+    [[0,1],[0,2],[1,2]].forEach(([a,b],i)=>{
+      const key='rr'+i;const w=draw.winners&&draw.winners[key];const sc=draw.scores&&draw.scores[key];
+      res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,p1:pairs[a]||'ペア'+(a+1),p2:pairs[b]||'ペア'+(b+1),round:'リーグ',day:1,done:w!==undefined,score:sc});
+    });
+  }else{
+    const rounds=Math.log2(np2(sz));
+    const rNames=roundNames(rounds);
+    const mc=Array.from({length:rounds},(_,r)=>sz/Math.pow(2,r+1));
+    for(let ri=0;ri<rounds;ri++){
+      const day=getDay(ri,rounds);
+      for(let mi=0;mi<mc[ri];mi++){
+        const p1=getSlot(draw,ri,mi,0,sz);const p2=getSlot(draw,ri,mi,1,sz);
+        if(p1==='BYE'||p2==='BYE')continue;
+        const key='r'+ri+'_m'+mi;const w=draw.winners&&draw.winners[key];const sc=draw.scores&&draw.scores[key];
+        res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,p1:p1||'未決定',p2:p2||'未決定',round:rNames[ri],day,done:w!==undefined,score:sc});
+      }
+    }
+  }
+  return res;
+}
+
+function renderOOPTable(matches,containerId,courts){
+  if(!matches.length){
+    document.getElementById(containerId).innerHTML='<div style="padding:20px;text-align:center;color:#999">試合がありません</div>';return;
+  }
+  const cursor=Array(courts).fill(0);
+  const sched=matches.map(m=>{
+    const c=cursor.indexOf(Math.min(...cursor));const sl=cursor[c];cursor[c]++;return {...m,court:c+1,slot:sl};
+  });
+  const bySlot={};sched.forEach(m=>{if(!bySlot[m.slot])bySlot[m.slot]={};bySlot[m.slot][m.court]=m;});
+  const slots=Object.keys(bySlot).map(Number).sort((a,b)=>a-b);
+  let html='<table class="oop-t"><thead><tr><th>試合順</th>';
+  for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
+  html+='</tr></thead><tbody>';
+  slots.forEach(sl=>{
+    html+='<tr><td class="sl">第'+(sl+1)+'試合</td>';
+    for(let c=1;c<=courts;c++){
+      const m=bySlot[sl]&&bySlot[sl][c];
+      if(!m){html+='<td><div class="ec">—</div></td>';continue;}
+      const isF=m.round==='決勝',isSF=m.round==='準決勝';
+      const scTxt=m.score?fmtScore(m.score):'';
+      html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
+        +'<div class="cp">'+esc(m.p1)+'</div><div class="cv">vs</div><div class="cp">'+esc(m.p2)+'</div>'
+        +(scTxt?'<div class="csc">'+esc(scTxt)+'</div>':'')
+        +(m.done&&!scTxt?'<div style="font-size:9px;color:var(--ok);text-align:right;margin-top:2px">✓ 完了</div>':'')
+        +'</div></td>';
+    }
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById(containerId).innerHTML=html;
+}
+
+function renderOOP(){
+  const courts=S.settings.courts||4;
+  const cats=S.cats.filter(c=>c.active).sort((a,b)=>b.age-a.age);
+  const all=cats.flatMap(c=>getCatMatches(c));
+  const day1=all.filter(m=>m.day===1).sort((a,b)=>b.age-a.age);
+  const day2sf=all.filter(m=>m.day===2&&m.round!=='決勝').sort((a,b)=>b.age-a.age);
+  const day2f=all.filter(m=>m.day===2&&m.round==='決勝').sort((a,b)=>b.age-a.age);
+  const sfDone=day2sf.length>0&&day2sf.every(m=>m.done);
+
+  const alerts=document.getElementById('oop-alerts');alerts.innerHTML='';
+  if(day2sf.length>0&&!sfDone)alerts.innerHTML='<div class="al-w">⚠️ 全カテゴリーの準決勝が完了してから決勝を開始してください（最低60分のインターバルが必要）</div>';
+  else if(sfDone&&day2f.length>0)alerts.innerHTML='<div class="al-ok">✓ 準決勝完了 — 60分後に決勝開始可能です</div>';
+
+  renderOOPTable(day1,'oop-d1',courts);
+  const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
+  if(sfDone&&day2f.length>0)d2alert.innerHTML='<div class="al-ok" style="margin-bottom:0;border-radius:0">✓ 準決勝完了 — 決勝は60分後に開始してください</div>';
+  renderOOPTable([...day2sf,...day2f],'oop-d2',courts);
+}
+
+// ══════════════════════════════════════
+//  PUBLIC VIEW
+// ══════════════════════════════════════
+function renderPublic(){
+  const s=S.settings;
+  const cats=S.cats.filter(c=>c.active).sort((a,b)=>b.age-a.age);
+  let html='<div style="text-align:center;margin-bottom:20px;padding:12px">'
+    +'<div style="font-size:18px;font-weight:700;color:var(--bd)">'+esc(s.name||'日本パデル協会 全国ベテラン大会')+'</div>'
+    +(s.venue?'<div style="font-size:12px;color:#666;margin-top:4px">'+esc(s.venue)+'</div>':'')
+    +((s.d1||s.d2)?'<div style="font-size:12px;color:#666">'+([s.d1,s.d2].filter(Boolean).join(' / '))+'</div>':'')
+    +'</div>';
+
+  cats.forEach(cat=>{
+    const draw=S.draws[cat.id];if(!draw)return;
+    const sz=getDrawSize(cat.id);
+    html+='<div class="card"><div class="ch">'+esc(cat.label)+'</div><div class="cb" style="padding:10px">';
+    if(sz==='rr'){
+      const pairs=(draw.pairs||[]).slice(0,3);
+      if(!pairs.some(p=>p&&p.trim())){html+='<div style="color:#999;font-size:12px">ペア未登録</div>';}
+      else{
+        html+='<div style="font-size:11px;color:var(--bm);font-weight:700;margin-bottom:8px">総当たりリーグ</div>'
+          +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">';
+        [[0,1],[0,2],[1,2]].forEach(([a,b],mi)=>{
+          const w=draw.winners&&draw.winners['rr'+mi];
+          const sc=draw.scores&&draw.scores['rr'+mi];
+          const p1=pairs[a]||'P'+(a+1),p2=pairs[b]||'P'+(b+1);
+          const scTxt=sc?fmtScore(sc):'';
+          html+='<div style="border:1px solid var(--bb);border-radius:6px;padding:7px;font-size:11px;text-align:center'+(scTxt?';border-color:#71c99e':'')+'">'
+            +'<div style="color:#888;font-size:10px">'+(a+1)+' vs '+(b+1)+'</div>'
+            +'<div style="'+(w===0?'font-weight:700;color:var(--bm)':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p1)+'</div>'
+            +'<div style="color:#aaa;font-size:9px">vs</div>'
+            +'<div style="'+(w===1?'font-weight:700;color:var(--bm)':'')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p2)+'</div>'
+            +(scTxt?'<div style="font-size:10px;color:var(--ok);font-weight:600;margin-top:3px">'+esc(scTxt)+'</div>':'')
+            +'</div>';
+        });
+        html+='</div>';
+      }
+    }else{
+      const rounds=Math.log2(np2(sz));
+      const rNames=roundNames(rounds);
+      const mc=Array.from({length:rounds},(_,r)=>sz/Math.pow(2,r+1));
+      const filled=(draw.pairs||[]).filter(p=>p&&p.trim()).length;
+      if(!filled){html+='<div style="color:#999;font-size:12px">ペア未登録（'+sz+'組枠）</div>';}
+      else{
+        html+='<div style="overflow-x:auto"><div style="display:flex;gap:2px;min-width:'+(rounds*120)+'px">';
+        for(let ri=0;ri<rounds;ri++){
+          const day=getDay(ri,rounds);
+          html+='<div style="flex:1;min-width:110px">'
+            +'<div style="text-align:center;font-size:10px;font-weight:700;color:white;background:'+(day===1?'var(--bm)':'#b05000')+';padding:4px;border-radius:4px;margin-bottom:4px">'+rNames[ri]+'</div>';
+          for(let mi=0;mi<mc[ri];mi++){
+            const p1=getSlot(draw,ri,mi,0,sz);const p2=getSlot(draw,ri,mi,1,sz);
+            const w=draw.winners&&draw.winners['r'+ri+'_m'+mi];
+            const sc=draw.scores&&draw.scores['r'+ri+'_m'+mi];
+            const scTxt=sc?fmtScore(sc):'';
+            html+='<div style="border:1px solid var(--bb);border-radius:6px;margin:2px;overflow:hidden'+(scTxt?';border-color:#71c99e':'')+'">'
+              +'<div style="padding:5px 7px;font-size:11px;'+(w===0?'background:var(--bl);font-weight:700;color:var(--bm)':'')+'">'+(p1==='BYE'?'<span style="color:#aaa">BYE</span>':p1||'<span style="color:#ccc">未決定</span>')+'</div>'
+              +'<div style="height:1px;background:var(--bb)"></div>'
+              +'<div style="padding:5px 7px;font-size:11px;'+(w===1?'background:var(--bl);font-weight:700;color:var(--bm)':'')+'">'+(p2==='BYE'?'<span style="color:#aaa">BYE</span>':p2||'<span style="color:#ccc">未決定</span>')+'</div>'
+              +(scTxt?'<div style="font-size:10px;color:var(--ok);text-align:center;padding:2px 4px;background:#e8f5ee;font-weight:600">'+esc(scTxt)+'</div>':'')
+              +'</div>';
+          }
+          html+='</div>';
+        }
+        html+='</div></div>';
+      }
+    }
+    html+='</div></div>';
+  });
+  html+='<div class="pub-sp">'+['スポンサー1','スポンサー2','スポンサー3','スポンサー4'].map(x=>'<div class="sp-big">'+x+'</div>').join('')+'</div>';
+  document.getElementById('pub-body').innerHTML=html;
+}
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+updateHeader();
+renderSettings();
+
+// ══════════════════════════════════════
+//  SHARE & REALTIME SYNC
+// ══════════════════════════════════════
+
+// ── Realtime sync state ──
+let RT={
+  apiKey: '',   // JSONBin secret key
+  binId: '',    // created bin ID
+  isAdmin: false,
+  pollTimer: null,
+  lastHash: ''
+};
+
+// ── Startup: load RT config from localStorage & detect URL params ──
+(function initShare(){
+  // Load saved RT config
+  try{
+    const saved=localStorage.getItem('jpa_rt_v1');
+    if(saved){ const p=JSON.parse(saved); if(p){ RT.apiKey=p.k||''; RT.binId=p.b||''; }}
+  }catch(e){}
+
+  const params=new URLSearchParams(location.search);
+  const publicOnly=params.get('view')==='public';
+  const rtBin=params.get('bin');
+  const rtKey=params.get('k');
+
+  if(rtBin){
+    // Opened via realtime share URL → poll from cloud
+    RT.binId=rtBin;
+    RT.isAdmin=false;
+    if(rtKey){ RT.apiKey=rtKey; RT.isAdmin=true; }
+    setSyncBar('loading','クラウドからデータを読み込み中...');
+    fetchFromBin(rtBin, RT.apiKey).then(data=>{
+      if(data){ S=data; persist(); updateHeader(); }
+      setSyncBar('ok','同期中（30秒ごとに自動更新）');
+      startPolling();
+      // Render current screen
+      if(publicOnly){
+        document.getElementById('nav').style.display='none';
+        document.getElementById('back-btn').style.display='none';
+        setTimeout(()=>show('public'),80);
+      }else{
+        show('settings');
+      }
+    }).catch(()=>{
+      setSyncBar('err','接続エラー — ローカルデータを使用');
+    });
+  } else {
+    // Normal local mode
+    // Restore RT if was previously active
+    if(RT.binId && RT.apiKey){
+      setSyncBar('ok','クラウド同期中');
+      startPolling();
+      RT.isAdmin=true;
+    }
+    // Check snapshot hash
+    try{
+      const hash=location.hash;
+      if(hash.startsWith('#d=')){
+        const json=decodeURIComponent(atob(hash.slice(3)));
+        const loaded=JSON.parse(json);
+        if(loaded&&loaded.settings){ S=loaded; }
+      }
+    }catch(e){}
+    if(publicOnly){
+      document.getElementById('nav').style.display='none';
+      document.getElementById('back-btn').style.display='none';
+      setTimeout(()=>show('public'),80);
+    }
+  }
+})();
+
+// ── JSONBin API helpers ──
+const JBIN='https://api.jsonbin.io/v3';
+
+async function fetchFromBin(binId, apiKey){
+  const headers={'Content-Type':'application/json'};
+  if(apiKey) headers['X-Master-Key']=apiKey;
+  const r=await fetch(JBIN+'/b/'+binId+'/latest',{headers});
+  if(!r.ok){
+    let detail='';
+    try{const j=await r.json();detail=j.message||'';}catch(e){}
+    throw new Error('HTTP '+r.status+(detail?' — '+detail:''));
+  }
+  const j=await r.json();
+  if(!j.record) throw new Error('レスポンスにrecordがありません');
+  return j.record;
+}
+
+async function saveToBin(data){
+  if(!RT.binId||!RT.apiKey) return;
+  try{
+    setSyncDot('syncing');
+    const r=await fetch(JBIN+'/b/'+RT.binId,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':RT.apiKey},
+      body:JSON.stringify(data)
+    });
+    if(r.ok){
+      setSyncDot('ok');setSyncTime();
+      document.getElementById('sync-msg').textContent='リアルタイム同期中';
+    }else{
+      let detail='';
+      try{const j=await r.json();detail=j.message||'';}catch(e){}
+      setSyncDot('err');
+      document.getElementById('sync-msg').textContent='同期エラー: HTTP '+r.status+(detail?' — '+detail:'');
+    }
+  }catch(e){
+    setSyncDot('err');
+    document.getElementById('sync-msg').textContent='通信エラー: '+e.message;
+  }
+}
+
+async function createBin(data, apiKey){
+  const r=await fetch(JBIN+'/b',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'X-Master-Key':apiKey,
+      'X-Bin-Name':'JPA-Padel'
+    },
+    body:JSON.stringify(data)
+  });
+  if(!r.ok){
+    let detail='';
+    try{const j=await r.json();detail=j.message||JSON.stringify(j);}catch(e){}
+    throw new Error('HTTP '+r.status+(detail?' — '+detail:''));
+  }
+  const j=await r.json();
+  if(!j.metadata||!j.metadata.id) throw new Error('BIN IDが取得できませんでした: '+JSON.stringify(j));
+  return j.metadata.id;
+}
+
+// ── Override persist to also sync to cloud ──
+const _origPersist = persist;
+function persist(){
+  _origPersist();
+  if(RT.binId && RT.apiKey && RT.isAdmin){
+    saveToBin(S);
+  }
+}
+
+// ── Polling (viewer side) ──
+function startPolling(){
+  if(RT.pollTimer) clearInterval(RT.pollTimer);
+  RT.pollTimer=setInterval(async ()=>{
+    try{
+      const data=await fetchFromBin(RT.binId, RT.apiKey);
+      const h=JSON.stringify(data);
+      if(h!==RT.lastHash){
+        RT.lastHash=h;
+        S=data;
+        _origPersist();
+        updateHeader();
+        // Re-render current screen
+        if(cur==='draws') renderDraws();
+        if(cur==='oop') renderOOP();
+        if(cur==='public') renderPublic();
+        if(cur==='settings') renderSettings();
+        setSyncTime();
+      }
+      setSyncDot('ok');
+    }catch(e){setSyncDot('err');}
+  }, 30000);
+}
+
+// ── Sync bar helpers ──
+function setSyncBar(state, msg){
+  const bar=document.getElementById('sync-bar');
+  bar.classList.add('active');
+  document.getElementById('sync-msg').textContent=msg;
+  setSyncDot(state);
+}
+function setSyncDot(state){
+  const d=document.getElementById('sync-dot');
+  d.className='sync-dot '+state;
+}
+function setSyncTime(){
+  const el=document.getElementById('sync-last');
+  const now=new Date();
+  el.textContent='最終: '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+}
+
+// ── Realtime setup UI ──
+function showRtSetup(){
+  document.getElementById('rt-prompt').style.display='none';
+  document.getElementById('rt-setup').style.display='block';
+  // Pre-fill if exists
+  if(RT.apiKey) document.getElementById('rt-apikey').value=RT.apiKey;
+  if(RT.binId){
+    document.getElementById('rt-setup').style.display='none';
+    document.getElementById('rt-active').style.display='block';
+    document.getElementById('rt-prompt').style.display='none';
+    updateRtUrls();
+  }
+}
+
+async function startRealtimeSync(btn){
+  const keyEl=document.getElementById('rt-apikey');
+  const errEl=document.getElementById('rt-setup-err');
+  const key=keyEl.value.trim();
+  if(!key){ errEl.textContent='APIキーを入力してください'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const origTxt=btn.textContent; btn.textContent='作成中...'; btn.disabled=true;
+  try{
+    const binId=await createBin(S, key);
+    RT.apiKey=key; RT.binId=binId; RT.isAdmin=true;
+    localStorage.setItem('jpa_rt_v1',JSON.stringify({k:key,b:binId}));
+    document.getElementById('rt-setup').style.display='none';
+    document.getElementById('rt-active').style.display='block';
+    document.getElementById('rt-prompt').style.display='none';
+    document.getElementById('rt-bin-id').textContent='BIN: '+binId;
+    setSyncBar('ok','リアルタイム同期中');
+    startPolling();
+    updateRtUrls();
+    document.getElementById('rt-status-badge').textContent='同期中';
+    document.getElementById('rt-status-badge').style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';
+  }catch(e){
+    errEl.textContent='エラー詳細: '+e.message;
+    errEl.style.display='block';
+  }
+  btn.textContent='同期開始'; btn.disabled=false;
+}
+
+function stopRealtimeSync(){
+  if(!confirm('リアルタイム同期を停止しますか？')) return;
+  if(RT.pollTimer) clearInterval(RT.pollTimer);
+  RT.binId=''; RT.isAdmin=false;
+  localStorage.removeItem('jpa_rt_v1');
+  document.getElementById('sync-bar').classList.remove('active');
+  document.getElementById('rt-active').style.display='none';
+  document.getElementById('rt-prompt').style.display='block';
+  document.getElementById('rt-status-badge').textContent='未設定';
+  document.getElementById('rt-status-badge').style.cssText='';
+}
+
+function updateRtUrls(){
+  const base=location.href.split('#')[0].split('?')[0];
+  const adminUrl=base+'?bin='+RT.binId+'&k='+encodeURIComponent(RT.apiKey);
+  const pubUrl=base+'?view=public&bin='+RT.binId;
+  const el1=document.getElementById('url-rt-admin');
+  const el2=document.getElementById('url-rt-public');
+  if(el1) el1.value=adminUrl;
+  if(el2) el2.value=pubUrl;
+}
+
+// ── Snapshot URL ──
+function buildShareUrl(publicOnly){
+  try{
+    const json=JSON.stringify(S);
+    const encoded=btoa(encodeURIComponent(json));
+    const base=location.href.split('#')[0].split('?')[0];
+    return publicOnly ? base+'?view=public#d='+encoded : base+'#d='+encoded;
+  }catch(e){return location.href;}
+}
+
+// ── Share modal open/close ──
+function openShare(){
+  // Snapshot URLs
+  document.getElementById('url-full').value=buildShareUrl(false);
+  document.getElementById('url-public').value=buildShareUrl(true);
+  document.getElementById('qr-area').style.display='none';
+  // Show correct RT state
+  if(RT.binId && RT.isAdmin){
+    document.getElementById('rt-prompt').style.display='none';
+    document.getElementById('rt-setup').style.display='none';
+    document.getElementById('rt-active').style.display='block';
+    document.getElementById('rt-bin-id').textContent='BIN: '+RT.binId;
+    document.getElementById('rt-status-badge').textContent='同期中';
+    document.getElementById('rt-status-badge').style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';
+    updateRtUrls();
+  } else {
+    document.getElementById('rt-prompt').style.display='block';
+    document.getElementById('rt-setup').style.display='none';
+    document.getElementById('rt-active').style.display='none';
+  }
+  document.getElementById('share-mo').classList.add('open');
+}
+function closeShare(){document.getElementById('share-mo').classList.remove('open');}
+
+// ── Copy URL ──
+function copyUrl(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.select();
+  try{
+    document.execCommand('copy');
+    const btn=event.target; const orig=btn.textContent;
+    btn.textContent='✓ コピーしました!';
+    setTimeout(()=>btn.textContent=orig,2000);
+  }catch(e){
+    navigator.clipboard&&navigator.clipboard.writeText(el.value);
+  }
+}
+
+// ── QR code ──
+function genQR(urlId){
+  const el=document.getElementById(urlId);
+  if(!el||!el.value)return;
+  const url=el.value;
+  const area=document.getElementById('qr-area');
+  const canvas=document.getElementById('qr-canvas');
+  const label=document.getElementById('qr-label');
+  area.style.display='block';
+  const isPublic=urlId.includes('public');
+  label.textContent=isPublic?'👁 回覧用QRコード':'⚙ 管理画面QRコード';
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,180,180);
+  ctx.fillStyle='#555';ctx.font='11px sans-serif';ctx.textAlign='center';
+  ctx.fillText('QRコード読み込み中...',90,90);
+  const img=new Image();
+  img.crossOrigin='anonymous';
+  img.onload=()=>{ctx.clearRect(0,0,180,180);ctx.drawImage(img,0,0,180,180);};
+  img.onerror=()=>{
+    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,180,180);
+    ctx.fillStyle='#185FA5';ctx.font='bold 12px sans-serif';
+    ctx.fillText('QR生成にはオンライン環境が',90,70);
+    ctx.fillText('必要です。',90,88);
+    ctx.fillStyle='#555';ctx.font='10px sans-serif';
+    ctx.fillText('URLをコピーして',90,115);
+    ctx.fillStyle='#185FA5';
+    ctx.fillText('qr.quel.jp などで生成してください',90,132);
+  };
+  img.src='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(url);
+}
+
+
+// ══════════════════════════════════════
+//  EXPORT / IMPORT (コピペ共有)
+// ══════════════════════════════════════
+function doExport(){
+  const area = document.getElementById('export-area');
+  const txt  = document.getElementById('export-txt');
+  // Encode as base64 JSON with prefix marker
+  const json = JSON.stringify(S);
+  const b64  = 'JPA_DATA:' + btoa(encodeURIComponent(json));
+  txt.value  = b64;
+  area.style.display = 'block';
+  txt.select();
+  try { document.execCommand('copy'); } catch(e) {
+    navigator.clipboard && navigator.clipboard.writeText(b64);
+  }
+  // Flash button
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓ コピーしました！';
+  setTimeout(() => btn.textContent = orig, 2500);
+}
+
+function doImport(){
+  const raw = (document.getElementById('import-txt').value || '').trim();
+  const errEl = document.getElementById('import-err');
+  errEl.style.display = 'none';
+  if(!raw){ errEl.textContent = 'データを貼り付けてください'; errEl.style.display='block'; return; }
+  try{
+    let json;
+    if(raw.startsWith('JPA_DATA:')){
+      json = decodeURIComponent(atob(raw.slice(9)));
+    } else {
+      // Try raw JSON or old base64
+      try{ json = decodeURIComponent(atob(raw)); } catch(e){ json = raw; }
+    }
+    const loaded = JSON.parse(json);
+    if(!loaded || !loaded.settings) throw new Error('データ形式が正しくありません');
+    S = loaded;
+    persist();
+    updateHeader();
+    closeShare();
+    // Re-render
+    if(cur==='draws') renderDraws();
+    else if(cur==='oop') renderOOP();
+    else if(cur==='public') renderPublic();
+    else renderSettings();
+    alert('✓ インポート完了しました！');
+  }catch(e){
+    errEl.textContent = 'エラー: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+</script>
+
+<!-- SHARE MODAL -->
+<div id="share-mo">
+  <div id="share-box">
+    <h3>🔗 共有</h3>
+    <div class="sh-sub">3つの方法から選べます</div>
+
+    <!-- ① コピペ共有（今すぐ使える） -->
+    <div class="sh-section" style="border-color:var(--bm);background:#f0f7ff">
+      <h4>① データをコピペで共有 <span class="view-badge" style="background:#fff3cd;color:#856404">今すぐ使える</span></h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px">
+        データをテキストでエクスポートし、LINEやメールで送れます。受け取った側がインポートすれば同じ状態になります。
+      </p>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button class="btn bp sm" onclick="doExport()" style="flex:1">📤 データをコピー（エクスポート）</button>
+      </div>
+      <div id="export-area" style="display:none;margin-bottom:8px">
+        <div class="export-box">
+          <textarea class="export-txt" id="export-txt" readonly></textarea>
+        </div>
+        <div style="font-size:10px;color:#666">↑ 全選択してコピーし、相手にLINE・メールで送ってください</div>
+      </div>
+      <div style="border-top:1px solid var(--bb);padding-top:8px;margin-top:4px">
+        <div style="font-size:11px;font-weight:700;color:var(--bd);margin-bottom:6px">受け取ったデータを取り込む（インポート）</div>
+        <textarea class="import-txt" id="import-txt" placeholder="受け取ったデータをここに貼り付けてください..."></textarea>
+        <button class="btn bg2 sm" onclick="doImport()" style="margin-top:6px;width:100%">📥 インポートして反映</button>
+        <div id="import-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
+      </div>
+    </div>
+
+    <!-- ② GitHub Pages（恒久URL・リアルタイム可能） -->
+    <div class="sh-section" style="border-color:#6f42c1;background:#faf5ff">
+      <h4>② GitHub Pages で公開 <span class="view-badge" style="background:#ede9fe;color:#6f42c1;border:1px solid #c4b5fd">恒久URL・無料</span></h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px">
+        一度設定すれば <strong>https://あなた名.github.io/jpa-padel/</strong> という永続URLができます。
+        スマホのQRコードで選手に配布できます。
+      </p>
+      <div class="gh-steps">
+        <strong>設定手順（初回のみ・約5分）</strong><br>
+        1. <a href="https://github.com" target="_blank">github.com</a> で無料アカウント作成<br>
+        2. 「New repository」→ 名前を <code>jpa-padel</code> にして作成<br>
+        3. 「Add file」→「Upload files」→ このHTMLファイルを <code>index.html</code> という名前でアップロード<br>
+        4. Settings → Pages → Branch: main → Save<br>
+        5. 数分後に <code>https://ユーザー名.github.io/jpa-padel/</code> でアクセス可能<br>
+        6. <strong>スコアを更新したら</strong>、このHTMLファイルを上書きアップロードするだけ
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
+    </div>
+
+    <!-- ③ リアルタイム同期（要サーバー環境） -->
+    <div class="sh-section">
+      <h4>③ リアルタイム自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">サーバー環境が必要</span></h4>
+      <p style="font-size:11px;color:#666;margin-bottom:8px">
+        JSONBin.io APIを使います。<br>
+        ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
+        GitHub Pages等のURL（https://）からアクセスした場合のみ使えます。
+      </p>
+      <div id="rt-prompt">
+        <button class="btn bg2 sm" onclick="showRtSetup()" style="width:100%">⚡ リアルタイム同期を設定する（https環境のみ）</button>
+      </div>
+      <div id="rt-setup" style="display:none">
+        <div style="background:white;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px;color:#333;line-height:1.7">
+          <strong>設定手順：</strong><br>
+          1. <a href="https://jsonbin.io" target="_blank" style="color:var(--bm)">jsonbin.io</a> で無料アカウント作成<br>
+          2. API Keys → Secret Key をコピー<br>
+          3. 下に貼り付けて「同期開始」
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input class="sync-api-input" id="rt-apikey" type="password" placeholder="$2a$10$xxxx...">
+          <button class="btn bp sm" onclick="startRealtimeSync(this)">同期開始</button>
+        </div>
+        <div id="rt-setup-err" style="font-size:10px;color:#dc3545;display:none"></div>
+      </div>
+      <div id="rt-active" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="sync-dot ok"></span>
+          <span style="font-size:12px;color:var(--ok);font-weight:700">同期中</span>
+          <span id="rt-bin-id" style="font-size:10px;color:#888;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis"></span>
+          <button class="btn bd2 sm" onclick="stopRealtimeSync()">停止</button>
+        </div>
+        <textarea class="sh-url" id="url-rt-admin" rows="2" readonly placeholder="管理URL（生成中...）"></textarea>
+        <div class="sh-btns" style="margin-bottom:6px">
+          <button class="btn bp sm" onclick="copyUrl('url-rt-admin')">📋 管理URLコピー</button>
+          <button class="btn bs sm" onclick="genQR('url-rt-admin')">QR</button>
+        </div>
+        <textarea class="sh-url" id="url-rt-public" rows="2" readonly placeholder="回覧URL（生成中...）"></textarea>
+        <div class="sh-btns">
+          <button class="btn bp sm" onclick="copyUrl('url-rt-public')">📋 回覧URLコピー</button>
+          <button class="btn bs sm" onclick="genQR('url-rt-public')">QR</button>
+        </div>
+      </div>
+      <span class="rt-badge" id="rt-status-badge" style="display:none">同期中</span>
+    </div>
+
+    <div id="qr-area" style="text-align:center;display:none;margin-top:8px">
+      <canvas id="qr-canvas" width="180" height="180"></canvas>
+      <div style="font-size:10px;color:#888;margin-top:4px" id="qr-label"></div>
+    </div>
+
+    <!-- スナップショットURL（折りたたみ） -->
+    <details style="margin-top:8px">
+      <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
+      <div style="padding:8px 0">
+        <textarea class="sh-url" id="url-full" rows="2" readonly></textarea>
+        <div class="sh-btns" style="margin-bottom:6px">
+          <button class="btn bp sm" onclick="copyUrl('url-full')">📋 管理URL</button>
+          <button class="btn bs sm" onclick="genQR('url-full')">QR</button>
+        </div>
+        <textarea class="sh-url" id="url-public" rows="2" readonly></textarea>
+        <div class="sh-btns">
+          <button class="btn bp sm" onclick="copyUrl('url-public')">📋 回覧URL</button>
+          <button class="btn bs sm" onclick="genQR('url-public')">QR</button>
+        </div>
+      </div>
+    </details>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn bs" onclick="closeShare()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
