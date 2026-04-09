@@ -164,14 +164,38 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
 /* PUBLIC */
 #pub-bar{background:var(--bl);border-bottom:1px solid var(--bb);padding:8px 14px;display:flex;justify-content:space-between;align-items:center}
 #pub-bar span{font-size:12px;color:var(--bm);font-weight:600}
-.pub-sp{margin-top:20px;padding:14px;background:#f0f4fa;border-radius:8px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.pub-sp{margin-top:20px;padding:16px;background:#f0f4fa;border-radius:8px;display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap}
 .sp-big{width:90px;height:36px;background:#dce8f5;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#99a}
+.sp-logo-img{height:48px;max-width:120px;object-fit:contain;border-radius:4px}
+/* Public-only view: clean header */
+.pub-only-hdr{background:linear-gradient(135deg,var(--bd) 0%,var(--bm) 100%);padding:16px;text-align:center;color:white;margin-bottom:0}
+.pub-only-hdr h1{font-size:17px;font-weight:700;margin-bottom:4px}
+.pub-only-hdr p{font-size:11px;opacity:.8}
+
+/* Sponsor footer bar */
+.sponsor-footer{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap;padding:14px 16px;background:white;border-top:2px solid var(--bb);margin-top:16px}
+.sponsor-footer .sp-logo{height:44px;max-width:110px;object-fit:contain}
+.sponsor-footer .sp-placeholder{height:44px;min-width:80px;background:#f0f4fa;border:1px dashed #ccc;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;padding:0 8px}
+.pdf-btn-bar{display:flex;justify-content:flex-end;padding:8px 14px 0;gap:8px}
 
 @media print{
-  body{background:white}
-  #nav,#back-btn,.btn,#mo,#pub-bar,.draw-size-bar{display:none!important}
-  .card{box-shadow:none;page-break-inside:avoid}
-  .draw-wrap{overflow:visible}
+  body{background:white;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #hdr-top,#nav,#back-btn,.btn,#mo,#pub-bar,.draw-size-bar,#sync-bar,#share-mo,
+  .pdf-btn-bar,.draw-info,.seed-legend,#cat-tabs{display:none!important}
+  .card{box-shadow:none;border:1px solid #ccc;page-break-inside:avoid}
+  .draw-wrap{overflow:visible!important}
+  .t-rounds{flex-wrap:nowrap}
+  .scr{padding:0!important}
+  .scr.active{display:block!important}
+  body>div:not(#body){display:none!important}
+  #body{max-width:100%!important;padding:0!important}
+  /* Print header simplified */
+  #hdr{background:white!important;border-bottom:2px solid #042C53;padding:8px 0}
+  #hdr nav{display:none!important}
+  /* Page breaks */
+  .card{margin-bottom:8px}
+  .sponsor-footer{border-top:1px solid #ccc;margin-top:8px;padding:8px}
+  @page{size:A4;margin:10mm 8mm}
 }
 
 /* SHARE MODAL */
@@ -261,6 +285,14 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
       </div>
     </div>
     <div class="card">
+      <div class="ch">スポンサーロゴ設定（回覧用ページに表示）</div>
+      <div class="cb">
+        <p style="font-size:11px;color:#888;margin-bottom:10px">各スポンサーのロゴ画像URL（https://...）を入力してください。空欄のスポンサーは表示されません。</p>
+        <div id="sponsor-inputs"></div>
+        <p style="font-size:10px;color:var(--ok);margin-top:6px">✓ 画像を選択すると自動で保存されます</p>
+      </div>
+    </div>
+    <div class="card">
       <div class="ch">カテゴリー管理</div>
       <div class="cb">
         <p style="font-size:11px;color:#888;margin-bottom:10px">3組未満のカテゴリーは隣接カテゴリーと統合できます（2カテゴリーまで）。「統合」を押した後、統合先を選択してください。</p>
@@ -295,6 +327,10 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
       </div>
       <div id="seed-legend-bar"></div>
       <div id="draw-body"></div>
+      <div id="draws-sponsor-footer" class="sponsor-footer" style="display:none"></div>
+    </div>
+    <div class="pdf-btn-bar">
+      <button class="btn bs sm" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
     </div>
   </div>
 
@@ -310,13 +346,26 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
     <div class="card">
       <div class="cb" style="padding:0"><div class="oop-wrap" id="oop-d2"></div></div>
     </div>
+    <div id="oop-sponsor-footer" class="sponsor-footer" style="display:none"></div>
+    <div class="pdf-btn-bar">
+      <button class="btn bs sm" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    </div>
   </div>
 
   <!-- PUBLIC -->
   <div id="scr-public" class="scr">
     <div id="pub-bar">
       <span>📋 回覧用（閲覧専用）</span>
-      <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn bg2 sm" onclick="copyPublicUrl()" title="外部共有用URL（管理UIなし）をコピー">🔗 外部公開URLをコピー</button>
+        <button class="btn bs sm" onclick="showPublicQR()" title="QRコードを表示">QR</button>
+        <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
+      </div>
+    </div>
+    <div id="pub-qr-bar" style="display:none;background:#f0f4fa;border-bottom:1px solid var(--bb);padding:10px;text-align:center">
+      <div style="font-size:11px;color:var(--bm);margin-bottom:6px">外部公開URL（このURLを選手・観客に配布）</div>
+      <div id="pub-url-txt" style="font-size:10px;font-family:monospace;word-break:break-all;color:#333;background:white;padding:6px 8px;border-radius:5px;border:1px solid var(--bb);margin-bottom:8px"></div>
+      <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;margin:0 auto;border-radius:6px"></canvas>
     </div>
     <div id="pub-body" style="padding:12px"></div>
   </div>
@@ -452,6 +501,7 @@ function newDraw(){return {pairs:[],scores:{},winners:{},drawSize:undefined};}
 
 let S={
   settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4},
+  sponsors:['','','','',''],
   cats:DEFS.map(c=>({...c,active:true})),
   draws:{}
 };
@@ -489,7 +539,67 @@ function renderSettings(){
   document.getElementById('s-d1').value=s.d1||'';
   document.getElementById('s-d2').value=s.d2||'';
   document.getElementById('s-courts').value=s.courts||4;
+  renderSponsorInputs();
   renderCatGrid();
+}
+function renderSponsorInputs(){
+  if(!S.sponsors||S.sponsors.length<5)S.sponsors=['','','','',''];
+  const container=document.getElementById('sponsor-inputs');
+  if(!container)return;
+  container.innerHTML='';
+  for(let i=0;i<5;i++){
+    const idx=i;
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px;background:#f8faff;border-radius:6px;border:1px solid var(--bb)';
+    // Label
+    const lbl=document.createElement('div');
+    lbl.style.cssText='font-size:12px;color:var(--bm);font-weight:700;min-width:80px';
+    lbl.textContent='スポンサー'+(i+1);
+    // Preview
+    const preview=document.createElement('div');
+    preview.style.cssText='width:80px;height:40px;border:1px dashed #ccc;border-radius:5px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;flex-shrink:0';
+    if(S.sponsors[i]){
+      const img=document.createElement('img');
+      img.src=S.sponsors[i];img.style.cssText='max-width:78px;max-height:38px;object-fit:contain';
+      preview.appendChild(img);
+    }else{
+      preview.innerHTML='<span style="font-size:9px;color:#bbb">画像なし</span>';
+    }
+    // File input (hidden)
+    const fileInp=document.createElement('input');
+    fileInp.type='file';fileInp.accept='image/*';fileInp.style.display='none';
+    fileInp.addEventListener('change',function(){
+      const file=this.files[0];if(!file)return;
+      if(file.size>500000){alert('ファイルサイズは500KB以下にしてください');return;}
+      const reader=new FileReader();
+      reader.onload=function(e){
+        S.sponsors[idx]=e.target.result;
+        _localPersist();
+        renderSponsorInputs(); // refresh
+        renderSponsorFooters(); // update footers immediately
+      };
+      reader.readAsDataURL(file);
+    });
+    // Upload button
+    const upBtn=document.createElement('button');
+    upBtn.className='btn bp sm';upBtn.textContent='📁 画像を選択';
+    upBtn.onclick=()=>fileInp.click();
+    // Delete button
+    const delBtn=document.createElement('button');
+    delBtn.className='btn bd2 sm';delBtn.textContent='削除';
+    delBtn.style.display=S.sponsors[i]?'inline-block':'none';
+    delBtn.onclick=()=>{S.sponsors[idx]='';_localPersist();renderSponsorInputs();};
+    row.appendChild(lbl);row.appendChild(preview);row.appendChild(fileInp);
+    row.appendChild(upBtn);row.appendChild(delBtn);
+    container.appendChild(row);
+  }
+}
+function saveSponsors(){
+  // Auto-saved on upload; this button just gives confirmation
+  _localPersist();
+  renderSponsorFooters();
+  const btn=event.target;btn.textContent='✓ 保存済み';
+  setTimeout(()=>btn.textContent='スポンサー保存',2000);
 }
 function saveSettings(){
   S.settings.name=document.getElementById('s-name').value;
@@ -560,6 +670,29 @@ function splitCat(id){
 // ══════════════════════════════════════
 let curCat=null;
 
+// ── Sponsor footer renderer ──
+function renderSponsorFooters(){
+  const sponsors=(S.sponsors||[]).filter(url=>url&&url.trim());
+  ['draws-sponsor-footer','oop-sponsor-footer'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    if(sponsors.length===0){
+      el.style.display='none';
+      return;
+    }
+    el.style.display='flex';
+    el.innerHTML='';
+    sponsors.forEach((url,i)=>{
+      const img=document.createElement('img');
+      img.className='sp-logo';
+      img.src=url;
+      img.alt='スポンサー'+(i+1);
+      img.onerror=function(){this.style.display='none';};
+      el.appendChild(img);
+    });
+  });
+}
+
 function renderDraws(){
   const cats=S.cats.filter(c=>c.active);
   if(!cats.length){
@@ -583,6 +716,7 @@ function renderDraws(){
 
   const sz=getDrawSize(curCat);
   updateSizeBtns(sz);
+  renderSponsorFooters();
 
   document.getElementById('di-label').textContent=cat.label;
 
@@ -1104,6 +1238,7 @@ function renderOOP(){
   const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
   if(sfDone&&day2f.length>0)d2alert.innerHTML='<div class="al-ok" style="margin-bottom:0;border-radius:0">✓ 準決勝完了 — 決勝は60分後に開始してください</div>';
   renderOOPTable([...day2sf,...day2f],'oop-d2',courts);
+  renderSponsorFooters();
 }
 
 // ══════════════════════════════════════
@@ -1174,13 +1309,87 @@ function renderPublic(){
     }
     html+='</div></div>';
   });
-  html+='<div class="pub-sp">'+['スポンサー1','スポンサー2','スポンサー3','スポンサー4'].map(x=>'<div class="sp-big">'+x+'</div>').join('')+'</div>';
+  // Sponsor logos
+  const sponsors=(S.sponsors||[]).filter(u=>u&&u.trim());
+  if(sponsors.length>0){
+    html+='<div class="pub-sp">';
+    sponsors.forEach((url,i)=>{
+      html+='<img class="sp-logo-img" src="'+esc(url)+'" alt="スポンサー'+(i+1)+'" onerror="this.style.display=\'none\'">';
+    });
+    html+='</div>';
+  }else{
+    html+='<div class="pub-sp"><div class="sp-big">SPONSOR 1</div><div class="sp-big">SPONSOR 2</div><div class="sp-big">SPONSOR 3</div><div class="sp-big">SPONSOR 4</div><div class="sp-big">SPONSOR 5</div></div>';
+  }
   document.getElementById('pub-body').innerHTML=html;
 }
 
 // ══════════════════════════════════════
-//  INIT
+//  PUBLIC URL SHARE HELPERS
 // ══════════════════════════════════════
+function applyPublicOnlyUI(){
+  // Replace pub-bar content with clean viewer-only bar
+  const bar=document.getElementById('pub-bar');
+  if(!bar)return;
+  bar.innerHTML='<span style="font-size:13px;font-weight:700;color:var(--bm)">📋 '+esc(S.settings.name||'日本パデル協会 全国ベテラン大会')+'</span>'
+    +'<span style="font-size:11px;color:#888">'+(S.settings.venue||'')+'</span>';
+  // Hide QR bar toggle too
+  const qrBar=document.getElementById('pub-qr-bar');
+  if(qrBar)qrBar.style.display='none';
+}
+function getPublicUrl(){
+  // Returns a URL that opens ONLY the public view (no edit UI)
+  const base=location.href.split('#')[0].split('?')[0];
+  // Embed current data as snapshot
+  try{
+    const encoded=btoa(encodeURIComponent(JSON.stringify(S)));
+    return base+'?view=public#d='+encoded;
+  }catch(e){return base+'?view=public';}
+}
+function copyPublicUrl(){
+  const url=getPublicUrl();
+  navigator.clipboard?navigator.clipboard.writeText(url).then(()=>{
+    const btn=event.target;const orig=btn.textContent;
+    btn.textContent='✓ コピーしました！';setTimeout(()=>btn.textContent=orig,2000);
+  }):alert(url);
+  // Also show the URL and QR
+  showPublicQR();
+}
+function showPublicQR(){
+  const bar=document.getElementById('pub-qr-bar');
+  const urlTxt=document.getElementById('pub-url-txt');
+  const canvas=document.getElementById('pub-qr-canvas');
+  const url=getPublicUrl();
+  urlTxt.textContent=url;
+  bar.style.display=bar.style.display==='none'?'block':'none';
+  if(bar.style.display==='block'){
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
+    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
+    ctx.fillText('QRコード読み込み中...',80,80);
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
+    img.onerror=()=>{
+      ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
+      ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+      ctx.fillText('上のURLを',80,65);ctx.fillText('QRコード変換サービスで',80,82);ctx.fillText('生成してください',80,99);
+    };
+    img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
+  }
+}
+
+// ══════════════════════════════════════
+//  INIT — load snapshot from URL hash BEFORE rendering
+// ══════════════════════════════════════
+(function loadSnapshotEarly(){
+  try{
+    const hash=location.hash;
+    if(hash.startsWith('#d=')){
+      const json=decodeURIComponent(atob(hash.slice(3)));
+      const loaded=JSON.parse(json);
+      if(loaded&&loaded.settings){ S=loaded; }
+    }
+  }catch(e){}
+})();
 updateHeader();
 renderSettings();
 
@@ -1224,7 +1433,12 @@ let RT={
       if(publicOnly){
         document.getElementById('nav').style.display='none';
         document.getElementById('back-btn').style.display='none';
-        setTimeout(()=>show('public'),80);
+        document.getElementById('sync-bar').style.display='none';
+        // Hide the edit-back button in pub-bar
+        setTimeout(()=>{
+          show('public');
+          applyPublicOnlyUI();
+        },50);
       }else{
         show('settings');
       }
@@ -1239,19 +1453,15 @@ let RT={
       startPolling();
       RT.isAdmin=true;
     }
-    // Check snapshot hash
-    try{
-      const hash=location.hash;
-      if(hash.startsWith('#d=')){
-        const json=decodeURIComponent(atob(hash.slice(3)));
-        const loaded=JSON.parse(json);
-        if(loaded&&loaded.settings){ S=loaded; }
-      }
-    }catch(e){}
+    // (snapshot already loaded in loadSnapshotEarly before this runs)
     if(publicOnly){
       document.getElementById('nav').style.display='none';
       document.getElementById('back-btn').style.display='none';
-      setTimeout(()=>show('public'),80);
+      document.getElementById('sync-bar').style.display='none';
+      setTimeout(()=>{
+        show('public');
+        applyPublicOnlyUI();
+      },50);
     }
   }
 })();
