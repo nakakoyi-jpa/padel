@@ -1266,18 +1266,88 @@ function getCatMatches(cat){
   return res;
 }
 
+// ── OOP SCHEDULER ──────────────────────────────────────
+// RR scheduling: interleave matches across rounds so each pair
+// gets at least 1 time-slot rest between their two matches.
+// Internal RR round order: [P0vsP1, P1vsP2, P0vsP2]
+//   Round1: P0 vs P1  → P2 rests
+//   Round2: P1 vs P2  → P0 rests
+//   Round3: P0 vs P2  → P1 rests
+// Multiple RR cats are interleaved round-by-round across courts.
+// ───────────────────────────────────────────────────────
+function scheduleMatches(matches, courts){
+  // RR internal order indices: rr0=[P0vsP1], rr1=[P0vsP2], rr2=[P1vsP2]
+  // Reorder as [rr0, rr2, rr1] = [P0vsP1, P1vsP2, P0vsP2]
+  // Each pair: P0 in rounds 0,2 (skip 1) P1 in rounds 0,1 (skip 2) P2 in rounds 1,2 (skip 0)
+  const RR_ROUND_ORDER=[0,2,1]; // indices into [rr0,rr1,rr2]
+
+  const rrByCat={};
+  const nonRR=[];
+
+  matches.forEach(m=>{
+    if(m.round==='リーグ'){
+      const catId=m.id.split('_rr')[0];
+      if(!rrByCat[catId])rrByCat[catId]={age:m.age,ms:[null,null,null]};
+      const rrIdx=parseInt(m.id[m.id.length-1]); // last char = 0,1,2
+      rrByCat[catId].ms[rrIdx]=m;
+    }else{
+      nonRR.push(m);
+    }
+  });
+
+  const catIds=Object.keys(rrByCat).sort((a,b)=>rrByCat[b].age-rrByCat[a].age);
+  const scheduled=[];
+
+  if(catIds.length>0){
+    // Build 3 rounds, each containing one match per cat (in round order)
+    const rounds=[[],[],[]];
+    catIds.forEach(catId=>{
+      const ms=rrByCat[catId].ms;
+      RR_ROUND_ORDER.forEach((rrIdx,roundIdx)=>{
+        if(ms[rrIdx])rounds[roundIdx].push(ms[rrIdx]);
+      });
+    });
+
+    let slotStart=0;
+    rounds.forEach(roundMatches=>{
+      if(!roundMatches.length)return;
+      // Assign to courts sequentially within this round
+      let court=1, rowSlot=slotStart;
+      roundMatches.forEach(m=>{
+        scheduled.push({court,slot:rowSlot,match:m});
+        court++;
+        if(court>courts){court=1;rowSlot++;}
+      });
+      slotStart=rowSlot+1;
+    });
+  }
+
+  // Schedule non-RR matches after all RR rounds
+  const slotOffset=scheduled.length>0?(Math.max(...scheduled.map(s=>s.slot))+1):0;
+  const cursor=Array(courts).fill(slotOffset);
+  nonRR.sort((a,b)=>b.age-a.age).forEach(m=>{
+    const c=cursor.indexOf(Math.min(...cursor));
+    scheduled.push({court:c+1,slot:cursor[c],match:m});
+    cursor[c]++;
+  });
+
+  return scheduled;
+}
+
 function renderOOPTable(matches,containerId,courts){
-  // Filter out BYE auto-advance matches
   matches=matches.filter(m=>!m.isByeMatch&&m.p1!=='BYE'&&m.p2!=='BYE');
   if(!matches.length){
     document.getElementById(containerId).innerHTML='<div style="padding:20px;text-align:center;color:#999">試合がありません</div>';return;
   }
-  const cursor=Array(courts).fill(0);
-  const sched=matches.map(m=>{
-    const c=cursor.indexOf(Math.min(...cursor));const sl=cursor[c];cursor[c]++;return {...m,court:c+1,slot:sl};
+
+  const sched=scheduleMatches(matches,courts);
+  const bySlot={};
+  sched.forEach(({court,slot,match:m})=>{
+    if(!bySlot[slot])bySlot[slot]={};
+    bySlot[slot][court]=m;
   });
-  const bySlot={};sched.forEach(m=>{if(!bySlot[m.slot])bySlot[m.slot]={};bySlot[m.slot][m.court]=m;});
   const slots=Object.keys(bySlot).map(Number).sort((a,b)=>a-b);
+
   let html='<table class="oop-t"><thead><tr><th>試合順</th>';
   for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
   html+='</tr></thead><tbody>';
@@ -1310,19 +1380,49 @@ function renderOOP(){
   const sfDone=day2sf.length>0&&day2sf.every(m=>m.done);
 
   const alerts=document.getElementById('oop-alerts');alerts.innerHTML='';
-  // Check if all day1 RR matches are complete (then need 60-min before day2)
-  const day1RRDone = day1.length>0 && day1.filter(m=>m.round==='リーグ').every(m=>m.done);
-  const day1AllDone = day1.length>0 && day1.every(m=>m.done);
+
+  // --- Interval logic ---
   const hasDay2 = day2sf.length>0||day2f.length>0;
+  const day1AllDone = day1.length>0 && day1.every(m=>m.done);
+
+  // RR-only check: categories where ALL matches are league (no day2)
+  // Count how many cats are RR-only (no SF/Final)
+  const rrOnlyMatches = all.filter(m=>m.round==='リーグ');
+  const rrOnlyCatIds = [...new Set(rrOnlyMatches.map(m=>m.id.split('_')[0]))];
+  // Check if any RR-only category has all 3 matches done
+  const anyRRCatDone = rrOnlyCatIds.some(catId=>{
+    const catMatches = rrOnlyMatches.filter(m=>m.id.startsWith(catId+'_'));
+    return catMatches.length>=3 && catMatches.every(m=>m.done);
+  });
+  // All RR matches done across all RR cats
+  const allRRMatchesDone = rrOnlyMatches.length>0 && rrOnlyMatches.every(m=>m.done);
+
   let alertHTML='';
+
+  // SF → Final interval (tournament categories)
   if(day2sf.length>0&&!sfDone){
     alertHTML='<div class="al-w">⚠️ 全カテゴリーの準決勝が完了してから決勝を開始してください（最低60分のインターバルが必要）</div>';
   } else if(sfDone&&day2f.length>0){
     alertHTML='<div class="al-ok">✓ 準決勝完了 — 60分後に決勝開始可能です</div>';
   }
+
+  // Day1 → Day2 interval (when tournament has day2)
   if(day1AllDone&&hasDay2&&!sfDone){
     alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
   }
+
+  // RR-only: all 3 matches done → 60-min warning before next round or prize ceremony
+  if(allRRMatchesDone&&!hasDay2){
+    alertHTML+='<div class="al-ok" style="margin-top:4px">✓ 全リーグ戦終了 — 表彰・次の行動まで最低60分のインターバルをとってください</div>';
+  } else if(anyRRCatDone&&!allRRMatchesDone&&!hasDay2){
+    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ リーグ戦が完了したカテゴリーがあります — 全カテゴリー終了後に最低60分のインターバルをとってください</div>';
+  }
+
+  // Mixed: RR + Tournament — when all RR matches done and day2 coming up
+  if(allRRMatchesDone&&day1AllDone&&hasDay2&&!sfDone){
+    // Already covered by day1AllDone&&hasDay2 above, no additional message needed
+  }
+
   alerts.innerHTML=alertHTML;
 
   renderOOPTable(day1,'oop-d1',courts);
