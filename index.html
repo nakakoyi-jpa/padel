@@ -114,6 +114,22 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
 .rr-inp{flex:1;padding:7px 10px;border:1px solid var(--bb);border-radius:6px;font-size:13px;font-family:inherit;outline:none}
 .rr-inp:focus{border-color:var(--bm)}
 .rr-grid{display:grid;gap:6px;margin-top:10px}
+/* RR ranking table */
+.rr-ranking{margin-top:14px;border-radius:7px;overflow:hidden;border:1px solid var(--bb)}
+.rr-ranking table{width:100%;border-collapse:collapse;font-size:12px}
+.rr-ranking th{background:var(--bd);color:white;padding:6px 8px;text-align:center;font-size:11px;font-weight:700}
+.rr-ranking th:first-child{text-align:left}
+.rr-ranking td{padding:6px 8px;border-bottom:1px solid var(--bb);text-align:center}
+.rr-ranking td:first-child{text-align:left;font-weight:600}
+.rr-ranking tr:last-child td{border-bottom:none}
+.rr-ranking tr.rank-1 td{background:#fffbe6;color:#7a5800}
+.rr-ranking tr.rank-2 td{background:#f8f8f8}
+.rr-ranking .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;margin-right:4px}
+.rr-ranking .r1{background:#FFD700;color:#7a5800}
+.rr-ranking .r2{background:#C0C0C0;color:#444}
+.rr-ranking .r3{background:#cd7f32;color:#fff}
+/* Gender separator in public view */
+.gender-hdr{background:linear-gradient(135deg,var(--bd) 0%,var(--bm) 100%);color:white;font-size:14px;font-weight:700;padding:10px 14px;border-radius:7px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
 .rr-m{border:1px solid var(--bb);border-radius:6px;padding:8px;background:white;cursor:pointer;text-align:center;transition:all .15s}
 .rr-m:hover{border-color:var(--bm);background:var(--bl)}
 .rr-m.has-result{border-color:#71c99e;background:var(--okb)}
@@ -287,7 +303,7 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
     <div class="card">
       <div class="ch">スポンサーロゴ設定（回覧用ページに表示）</div>
       <div class="cb">
-        <p style="font-size:11px;color:#888;margin-bottom:10px">各スポンサーのロゴ画像URL（https://...）を入力してください。空欄のスポンサーは表示されません。</p>
+        <p style="font-size:11px;color:#888;margin-bottom:10px">ロゴ画像を選択してください（500KB以下推奨）。ロゴはこの端末のみ保存されます（クラウド同期には含まれません）。</p>
         <div id="sponsor-inputs"></div>
         <p style="font-size:10px;color:var(--ok);margin-top:6px">✓ 画像を選択すると自動で保存されます</p>
       </div>
@@ -501,10 +517,14 @@ function newDraw(){return {pairs:[],scores:{},winners:{},drawSize:undefined};}
 
 let S={
   settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4},
-  sponsors:['','','','',''],
   cats:DEFS.map(c=>({...c,active:true})),
   draws:{}
 };
+// Sponsors stored separately (base64 images are too large for cloud sync)
+let SPONSORS=['','','','',''];
+function loadSponsors(){try{const d=localStorage.getItem('jpa_sponsors');if(d)SPONSORS=JSON.parse(d);}catch(e){}}
+function saveSponsorsLocal(){try{localStorage.setItem('jpa_sponsors',JSON.stringify(SPONSORS));}catch(e){}}
+loadSponsors();
 DEFS.forEach(c=>{S.draws[c.id]=newDraw();});
 
 try{const d=localStorage.getItem('jpa_v5');if(d){const p=JSON.parse(d);if(p&&p.settings)S=p;}}catch(e){}
@@ -543,7 +563,7 @@ function renderSettings(){
   renderCatGrid();
 }
 function renderSponsorInputs(){
-  if(!S.sponsors||S.sponsors.length<5)S.sponsors=['','','','',''];
+  if(!SPONSORS||SPONSORS.length<5)SPONSORS=['','','','',''];
   const container=document.getElementById('sponsor-inputs');
   if(!container)return;
   container.innerHTML='';
@@ -558,9 +578,9 @@ function renderSponsorInputs(){
     // Preview
     const preview=document.createElement('div');
     preview.style.cssText='width:80px;height:40px;border:1px dashed #ccc;border-radius:5px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;flex-shrink:0';
-    if(S.sponsors[i]){
+    if(SPONSORS[i]){
       const img=document.createElement('img');
-      img.src=S.sponsors[i];img.style.cssText='max-width:78px;max-height:38px;object-fit:contain';
+      img.src=SPONSORS[i];img.style.cssText='max-width:78px;max-height:38px;object-fit:contain';
       preview.appendChild(img);
     }else{
       preview.innerHTML='<span style="font-size:9px;color:#bbb">画像なし</span>';
@@ -573,8 +593,8 @@ function renderSponsorInputs(){
       if(file.size>500000){alert('ファイルサイズは500KB以下にしてください');return;}
       const reader=new FileReader();
       reader.onload=function(e){
-        S.sponsors[idx]=e.target.result;
-        _localPersist();
+        SPONSORS[idx]=e.target.result;
+        saveSponsorsLocal();
         renderSponsorInputs(); // refresh
         renderSponsorFooters(); // update footers immediately
       };
@@ -587,16 +607,15 @@ function renderSponsorInputs(){
     // Delete button
     const delBtn=document.createElement('button');
     delBtn.className='btn bd2 sm';delBtn.textContent='削除';
-    delBtn.style.display=S.sponsors[i]?'inline-block':'none';
-    delBtn.onclick=()=>{S.sponsors[idx]='';_localPersist();renderSponsorInputs();};
+    delBtn.style.display=SPONSORS[i]?'inline-block':'none';
+    delBtn.onclick=()=>{SPONSORS[idx]='';saveSponsorsLocal();renderSponsorInputs();renderSponsorFooters();};
     row.appendChild(lbl);row.appendChild(preview);row.appendChild(fileInp);
     row.appendChild(upBtn);row.appendChild(delBtn);
     container.appendChild(row);
   }
 }
 function saveSponsors(){
-  // Auto-saved on upload; this button just gives confirmation
-  _localPersist();
+  saveSponsorsLocal();
   renderSponsorFooters();
   const btn=event.target;btn.textContent='✓ 保存済み';
   setTimeout(()=>btn.textContent='スポンサー保存',2000);
@@ -672,7 +691,7 @@ let curCat=null;
 
 // ── Sponsor footer renderer ──
 function renderSponsorFooters(){
-  const sponsors=(S.sponsors||[]).filter(url=>url&&url.trim());
+  const sponsors=(SPONSORS||[]).filter(url=>url&&url.trim());
   ['draws-sponsor-footer','oop-sponsor-footer'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
@@ -789,7 +808,72 @@ function updateRRMatches(catId,container){
     m.onclick=()=>openModal(cc,ck,cp1,cp2);
     grid.appendChild(m);
   });
+  // Build ranking table
+  const rrPairs=(S.draws[catId]&&S.draws[catId].pairs||[]).slice(0,3);
+  const rrRankHTML=buildRRRankingHTML(rrPairs,S.draws[catId]);
+  const rankDiv=document.createElement('div');
+  rankDiv.innerHTML=rrRankHTML;
   container.innerHTML='';container.appendChild(lbl);container.appendChild(grid);
+  if(rrRankHTML)container.appendChild(rankDiv);
+}
+
+// ── RR STANDINGS CALCULATOR ──
+function calcRRStandings(pairs, draw){
+  // pairs: array of 3 pair names
+  // Returns sorted standings array
+  const p = pairs.slice(0,3);
+  const stats = p.map((name,i)=>({name:name||'ペア'+(i+1),idx:i,wins:0,losses:0,setsW:0,setsL:0,gamesW:0,gamesL:0,played:0}));
+  const matchDefs = [[0,1],[0,2],[1,2]];
+  matchDefs.forEach(([a,b],mi)=>{
+    const key='rr'+mi;
+    const w = draw.winners&&draw.winners[key];
+    const sc = draw.scores&&draw.scores[key];
+    if(w===undefined) return; // not played yet
+    stats[a].played++; stats[b].played++;
+    if(w===0){stats[a].wins++;stats[b].losses++;}
+    else{stats[b].wins++;stats[a].losses++;}
+    // Count sets and games from score
+    if(sc){
+      [sc.s1,sc.s2,sc.s3].filter(Boolean).forEach(s=>{
+        if(!Array.isArray(s)||s[0]===null||s[1]===null)return;
+        const [ga,gb]=[s[0],s[1]];
+        stats[a].gamesW+=ga;stats[a].gamesL+=gb;
+        stats[b].gamesW+=gb;stats[b].gamesL+=ga;
+        if(ga>gb){stats[a].setsW++;stats[b].setsL++;}
+        else if(gb>ga){stats[b].setsW++;stats[a].setsL++;}
+      });
+    }
+  });
+  // Sort: wins desc → set diff desc → game diff desc
+  stats.sort((x,y)=>{
+    if(y.wins!==x.wins)return y.wins-x.wins;
+    const sd=(y.setsW-y.setsL)-(x.setsW-x.setsL);
+    if(sd!==0)return sd;
+    return (y.gamesW-y.gamesL)-(x.gamesW-x.gamesL);
+  });
+  return stats;
+}
+
+function buildRRRankingHTML(pairs, draw, compact){
+  const standings = calcRRStandings(pairs, draw);
+  const allPlayed = standings.every(s=>s.played>0);
+  if(!allPlayed&&standings.every(s=>s.played===0)) return '';
+  const badges=['r1','r2','r3'];
+  const labels=['🥇','🥈','🥉'];
+  let html='<div class="rr-ranking"><table><thead><tr>'
+    +'<th>順位 / ペア</th><th>勝</th><th>負</th><th>セット</th><th>ゲーム</th>'
+    +'</tr></thead><tbody>';
+  standings.forEach((s,i)=>{
+    html+='<tr class="'+(i===0?'rank-1':i===1?'rank-2':'')+'">'
+      +'<td><span class="rank-badge '+badges[i]+'">'+labels[i]+'</span>'+esc(s.name)+'</td>'
+      +'<td>'+s.wins+'</td>'
+      +'<td>'+s.losses+'</td>'
+      +'<td>'+(s.setsW)+' / '+(s.setsL)+'</td>'
+      +'<td>'+(s.gamesW)+' / '+(s.gamesL)+'</td>'
+      +'</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
 }
 
 // ── TOURNAMENT ──
@@ -1231,8 +1315,20 @@ function renderOOP(){
   const sfDone=day2sf.length>0&&day2sf.every(m=>m.done);
 
   const alerts=document.getElementById('oop-alerts');alerts.innerHTML='';
-  if(day2sf.length>0&&!sfDone)alerts.innerHTML='<div class="al-w">⚠️ 全カテゴリーの準決勝が完了してから決勝を開始してください（最低60分のインターバルが必要）</div>';
-  else if(sfDone&&day2f.length>0)alerts.innerHTML='<div class="al-ok">✓ 準決勝完了 — 60分後に決勝開始可能です</div>';
+  // Check if all day1 RR matches are complete (then need 60-min before day2)
+  const day1RRDone = day1.length>0 && day1.filter(m=>m.round==='リーグ').every(m=>m.done);
+  const day1AllDone = day1.length>0 && day1.every(m=>m.done);
+  const hasDay2 = day2sf.length>0||day2f.length>0;
+  let alertHTML='';
+  if(day2sf.length>0&&!sfDone){
+    alertHTML='<div class="al-w">⚠️ 全カテゴリーの準決勝が完了してから決勝を開始してください（最低60分のインターバルが必要）</div>';
+  } else if(sfDone&&day2f.length>0){
+    alertHTML='<div class="al-ok">✓ 準決勝完了 — 60分後に決勝開始可能です</div>';
+  }
+  if(day1AllDone&&hasDay2&&!sfDone){
+    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
+  }
+  alerts.innerHTML=alertHTML;
 
   renderOOPTable(day1,'oop-d1',courts);
   const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
@@ -1246,14 +1342,23 @@ function renderOOP(){
 // ══════════════════════════════════════
 function renderPublic(){
   const s=S.settings;
-  const cats=S.cats.filter(c=>c.active).sort((a,b)=>b.age-a.age);
-  let html='<div style="text-align:center;margin-bottom:20px;padding:12px">'
+  const allCats=S.cats.filter(c=>c.active).sort((a,b)=>b.age-a.age);
+  let html='<div style="text-align:center;margin-bottom:16px;padding:12px">'
     +'<div style="font-size:18px;font-weight:700;color:var(--bd)">'+esc(s.name||'日本パデル協会 全国ベテラン大会')+'</div>'
     +(s.venue?'<div style="font-size:12px;color:#666;margin-top:4px">'+esc(s.venue)+'</div>':'')
     +((s.d1||s.d2)?'<div style="font-size:12px;color:#666">'+([s.d1,s.d2].filter(Boolean).join(' / '))+'</div>':'')
     +'</div>';
 
-  cats.forEach(cat=>{
+  // Split by gender
+  const genders=[
+    {key:'M',label:'男子'},
+    {key:'F',label:'女子'}
+  ];
+  genders.forEach(g=>{
+    const cats=allCats.filter(cat=>(cat.gender===g.key));
+    if(!cats.length)return;
+    html+='<div class="gender-hdr">'+g.label+'</div>';
+    cats.forEach(cat=>{
     const draw=S.draws[cat.id];if(!draw)return;
     const sz=getDrawSize(cat.id);
     html+='<div class="card"><div class="ch">'+esc(cat.label)+'</div><div class="cb" style="padding:10px">';
@@ -1277,6 +1382,8 @@ function renderPublic(){
             +'</div>';
         });
         html+='</div>';
+        // RR ranking table
+        html+=buildRRRankingHTML(pairs,draw);
       }
     }else{
       const rounds=Math.log2(np2(sz));
@@ -1308,9 +1415,10 @@ function renderPublic(){
       }
     }
     html+='</div></div>';
-  });
+    }); // end cats.forEach
+  }); // end genders.forEach
   // Sponsor logos
-  const sponsors=(S.sponsors||[]).filter(u=>u&&u.trim());
+  const sponsors=(SPONSORS||[]).filter(u=>u&&u.trim());
   if(sponsors.length>0){
     html+='<div class="pub-sp">';
     sponsors.forEach((url,i)=>{
@@ -1487,10 +1595,13 @@ async function saveToBin(data){
   if(!RT.binId||!RT.apiKey) return;
   try{
     setSyncDot('syncing');
+    // Strip sponsors (base64 images) — too large for JSONBin free plan (100KB limit)
+    const dataToSync={...data};
+    delete dataToSync.sponsors;
     const r=await fetch(JBIN+'/b/'+RT.binId,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':RT.apiKey},
-      body:JSON.stringify(data)
+      body:JSON.stringify(dataToSync)
     });
     if(r.ok){
       setSyncDot('ok');setSyncTime();
@@ -1508,6 +1619,9 @@ async function saveToBin(data){
 }
 
 async function createBin(data, apiKey){
+  // Strip sponsors before creating bin (base64 images exceed 100KB free limit)
+  const dataToSync={...data};
+  delete dataToSync.sponsors;
   const r=await fetch(JBIN+'/b',{
     method:'POST',
     headers:{
@@ -1515,7 +1629,7 @@ async function createBin(data, apiKey){
       'X-Master-Key':apiKey,
       'X-Bin-Name':'JPA-Padel'
     },
-    body:JSON.stringify(data)
+    body:JSON.stringify(dataToSync)
   });
   if(!r.ok){
     let detail='';
