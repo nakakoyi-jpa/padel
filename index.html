@@ -379,6 +379,17 @@ body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;backgroun
       <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;margin:0 auto;border-radius:6px"></canvas>
     </div>
     <div id="pub-body" style="padding:12px"></div>
+    <!-- OOP in public view -->
+    <div id="pub-oop" style="padding:0 12px 12px">
+      <div class="day-hdr d1" style="margin-top:0">📅 1日目　オーダーオブプレイ</div>
+      <div class="card">
+        <div class="cb" style="padding:0"><div class="oop-wrap" id="pub-oop-d1"></div></div>
+      </div>
+      <div class="day-hdr d2">📅 2日目　オーダーオブプレイ</div>
+      <div class="card">
+        <div class="cb" style="padding:0"><div class="oop-wrap" id="pub-oop-d2"></div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1137,6 +1148,7 @@ function saveScore(){
   closeModal();
   renderDraws();
   renderOOP(); // always keep OOP in sync
+  if(cur==='public')renderPublicOOP();
 }
 function clearScore(){
   const {catId,key}=MS;
@@ -1276,10 +1288,9 @@ function getCatMatches(cat){
 // Multiple RR cats are interleaved round-by-round across courts.
 // ───────────────────────────────────────────────────────
 function scheduleMatches(matches, courts){
-  // RR internal order indices: rr0=[P0vsP1], rr1=[P0vsP2], rr2=[P1vsP2]
-  // Reorder as [rr0, rr2, rr1] = [P0vsP1, P1vsP2, P0vsP2]
-  // Each pair: P0 in rounds 0,2 (skip 1) P1 in rounds 0,1 (skip 2) P2 in rounds 1,2 (skip 0)
-  const RR_ROUND_ORDER=[0,2,1]; // indices into [rr0,rr1,rr2]
+  // RR round order: [rr0=P0vsP1, rr2=P1vsP2, rr1=P0vsP2]
+  // Each pair rests for exactly one round slot.
+  const RR_ROUND_ORDER=[0,2,1];
 
   const rrByCat={};
   const nonRR=[];
@@ -1288,7 +1299,7 @@ function scheduleMatches(matches, courts){
     if(m.round==='リーグ'){
       const catId=m.id.split('_rr')[0];
       if(!rrByCat[catId])rrByCat[catId]={age:m.age,ms:[null,null,null]};
-      const rrIdx=parseInt(m.id[m.id.length-1]); // last char = 0,1,2
+      const rrIdx=parseInt(m.id[m.id.length-1]);
       rrByCat[catId].ms[rrIdx]=m;
     }else{
       nonRR.push(m);
@@ -1299,9 +1310,20 @@ function scheduleMatches(matches, courts){
   const scheduled=[];
 
   if(catIds.length>0){
-    // Build 3 rounds, each containing one match per cat (in round order)
+    // How many cats fit in day1 without overflow?
+    // Each round must complete in 1 "row" (= 1 slot if cats <= courts,
+    // or multiple slots if cats > courts).
+    // RULE: if a cat's match would overflow to a 2nd slot in any round while
+    // another cat is in slot 1 of that same round → the overflowing cat is
+    // moved entirely to day2 (to avoid splitting a cat's rest pattern).
+    // 
+    // Simpler approach: take the first `courts` cats as day1, rest → day2.
+    const day1CatIds = catIds.slice(0, courts);   // fit in 1 row per round
+    const day2CatIds = catIds.slice(courts);       // overflow → day2
+
+    // Build 3 rounds for day1 cats
     const rounds=[[],[],[]];
-    catIds.forEach(catId=>{
+    day1CatIds.forEach(catId=>{
       const ms=rrByCat[catId].ms;
       RR_ROUND_ORDER.forEach((rrIdx,roundIdx)=>{
         if(ms[rrIdx])rounds[roundIdx].push(ms[rrIdx]);
@@ -1311,18 +1333,25 @@ function scheduleMatches(matches, courts){
     let slotStart=0;
     rounds.forEach(roundMatches=>{
       if(!roundMatches.length)return;
-      // Assign to courts sequentially within this round
       let court=1, rowSlot=slotStart;
       roundMatches.forEach(m=>{
         scheduled.push({court,slot:rowSlot,match:m});
-        court++;
-        if(court>courts){court=1;rowSlot++;}
+        court++;if(court>courts){court=1;rowSlot++;}
       });
       slotStart=rowSlot+1;
     });
+
+    // Day2 overflow RR cats: add to nonRR list so they're placed after nonRR
+    day2CatIds.forEach(catId=>{
+      const ms=rrByCat[catId].ms;
+      // Keep same rest-friendly order even in day2
+      RR_ROUND_ORDER.forEach(rrIdx=>{
+        if(ms[rrIdx])nonRR.push({...ms[rrIdx],_rrDay2:true});
+      });
+    });
   }
 
-  // Schedule non-RR matches after all RR rounds
+  // Schedule non-RR (tournament + overflow RR) matches
   const slotOffset=scheduled.length>0?(Math.max(...scheduled.map(s=>s.slot))+1):0;
   const cursor=Array(courts).fill(slotOffset);
   nonRR.sort((a,b)=>b.age-a.age).forEach(m=>{
@@ -1430,6 +1459,8 @@ function renderOOP(){
   if(sfDone&&day2f.length>0)d2alert.innerHTML='<div class="al-ok" style="margin-bottom:0;border-radius:0">✓ 準決勝完了 — 決勝は60分後に開始してください</div>';
   renderOOPTable([...day2sf,...day2f],'oop-d2',courts);
   renderSponsorFooters();
+  // Also sync OOP in public view if visible
+  if(document.getElementById('pub-oop-d1'))renderPublicOOP();
 }
 
 // ══════════════════════════════════════
@@ -1524,6 +1555,51 @@ function renderPublic(){
     html+='<div class="pub-sp"><div class="sp-big">SPONSOR 1</div><div class="sp-big">SPONSOR 2</div><div class="sp-big">SPONSOR 3</div><div class="sp-big">SPONSOR 4</div><div class="sp-big">SPONSOR 5</div></div>';
   }
   document.getElementById('pub-body').innerHTML=html;
+
+  // Also render OOP into public view
+  renderPublicOOP();
+}
+
+function renderPublicOOP(){
+  const courts=S.settings.courts||4;
+  const cats=S.cats.filter(c=>c.active).sort((a,b)=>b.age-a.age);
+  const all=cats.flatMap(c=>getCatMatches(c));
+  const day1=all.filter(m=>m.day===1).sort((a,b)=>b.age-a.age);
+  const day2sf=all.filter(m=>m.day===2&&m.round!=='決勝').sort((a,b)=>b.age-a.age);
+  const day2f=all.filter(m=>m.day===2&&m.round==='決勝').sort((a,b)=>b.age-a.age);
+  const d1el=document.getElementById('pub-oop-d1');
+  const d2el=document.getElementById('pub-oop-d2');
+  if(d1el)renderOOPInto(day1,d1el,courts);
+  if(d2el)renderOOPInto([...day2sf,...day2f],d2el,courts);
+}
+
+function renderOOPInto(matches, el, courts){
+  matches=matches.filter(m=>!m.isByeMatch&&m.p1!=='BYE'&&m.p2!=='BYE');
+  if(!matches.length){el.innerHTML='<div style="padding:16px;text-align:center;color:#999">試合がありません</div>';return;}
+  const sched=scheduleMatches(matches,courts);
+  const bySlot={};
+  sched.forEach(({court,slot,match:m})=>{if(!bySlot[slot])bySlot[slot]={};bySlot[slot][court]=m;});
+  const slots=Object.keys(bySlot).map(Number).sort((a,b)=>a-b);
+  let html='<table class="oop-t"><thead><tr><th>試合順</th>';
+  for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
+  html+='</tr></thead><tbody>';
+  slots.forEach(sl=>{
+    html+='<tr><td class="sl">第'+(sl+1)+'試合</td>';
+    for(let c=1;c<=courts;c++){
+      const m=bySlot[sl]&&bySlot[sl][c];
+      if(!m){html+='<td><div class="ec">—</div></td>';continue;}
+      const isF=m.round==='決勝',isSF=m.round==='準決勝';
+      const scTxt=m.score?fmtScore(m.score):'';
+      html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
+        +'<div class="cp">'+esc(m.p1)+'</div><div class="cv">vs</div><div class="cp">'+esc(m.p2)+'</div>'
+        +(scTxt?'<div class="csc">'+esc(scTxt)+'</div>':'')
+        +(m.done&&!scTxt?'<div style="font-size:9px;color:var(--ok);text-align:right;margin-top:2px">✓ 完了</div>':'')
+        +'</div></td>';
+    }
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  el.innerHTML=html;
 }
 
 // ══════════════════════════════════════
