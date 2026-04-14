@@ -1149,6 +1149,7 @@ function saveScore(){
   renderDraws();
   renderOOP(); // always keep OOP in sync
   if(cur==='public')renderPublicOOP();
+  updatePublicBinIfExists();
 }
 function clearScore(){
   const {catId,key}=MS;
@@ -1606,54 +1607,136 @@ function renderOOPInto(matches, el, courts){
 //  PUBLIC URL SHARE HELPERS
 // ══════════════════════════════════════
 function applyPublicOnlyUI(){
-  // Replace pub-bar content with clean viewer-only bar
   const bar=document.getElementById('pub-bar');
   if(!bar)return;
   bar.innerHTML='<span style="font-size:13px;font-weight:700;color:var(--bm)">📋 '+esc(S.settings.name||'日本パデル協会 全国ベテラン大会')+'</span>'
     +'<span style="font-size:11px;color:#888">'+(S.settings.venue||'')+'</span>';
-  // Hide QR bar toggle too
   const qrBar=document.getElementById('pub-qr-bar');
   if(qrBar)qrBar.style.display='none';
 }
-function getPublicUrl(){
-  // Returns a URL that opens ONLY the public view (no edit UI)
+
+// ── Short URL via JSONBin public bin ──
+let PUB_BIN_ID='';
+(function loadPubBin(){
+  try{const v=localStorage.getItem('jpa_pub_bin');if(v)PUB_BIN_ID=v;}catch(e){}
+})();
+
+async function getOrCreatePublicBin(){
+  // If RT sync is active → reuse that binId (already has data)
+  if(RT.binId&&RT.apiKey) return {binId:RT.binId,needsKey:false};
+  // If we already created a public bin, reuse it (after refreshing data)
+  if(PUB_BIN_ID){
+    // Refresh the public bin with latest data
+    try{
+      await fetch('https://api.jsonbin.io/v3/b/'+PUB_BIN_ID,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(S)
+      });
+    }catch(e){}
+    return {binId:PUB_BIN_ID,needsKey:false};
+  }
+  // Create a new PUBLIC bin (no API key required to read)
+  // Requires at least an API key for creation — use RT key if available
+  // If no key: fallback to snapshot URL
+  if(!RT.apiKey) return null;
+  try{
+    const dataToSync={...S};delete dataToSync.sponsors;
+    const r=await fetch('https://api.jsonbin.io/v3/b',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'X-Master-Key':RT.apiKey,
+        'X-Bin-Name':'JPA-Public',
+        'X-Bin-Private':'false'
+      },
+      body:JSON.stringify(dataToSync)
+    });
+    if(!r.ok)return null;
+    const j=await r.json();
+    PUB_BIN_ID=j.metadata.id;
+    localStorage.setItem('jpa_pub_bin',PUB_BIN_ID);
+    return {binId:PUB_BIN_ID,needsKey:false};
+  }catch(e){return null;}
+}
+
+function getShortPublicUrl(binId){
   const base=location.href.split('#')[0].split('?')[0];
-  // Embed current data as snapshot
+  return base+'?view=public&bin='+binId;
+}
+
+function getFallbackPublicUrl(){
+  // Long snapshot URL fallback
+  const base=location.href.split('#')[0].split('?')[0];
   try{
     const encoded=btoa(encodeURIComponent(JSON.stringify(S)));
     return base+'?view=public#d='+encoded;
   }catch(e){return base+'?view=public';}
 }
-function copyPublicUrl(){
-  const url=getPublicUrl();
-  navigator.clipboard?navigator.clipboard.writeText(url).then(()=>{
-    const btn=event.target;const orig=btn.textContent;
-    btn.textContent='✓ コピーしました！';setTimeout(()=>btn.textContent=orig,2000);
-  }):alert(url);
-  // Also show the URL and QR
-  showPublicQR();
+
+async function copyPublicUrl(){
+  const btn=event.target;
+  const orig=btn.textContent;
+  btn.textContent='⏳ URL生成中...';btn.disabled=true;
+  try{
+    let url;
+    const result=await getOrCreatePublicBin();
+    if(result){
+      url=getShortPublicUrl(result.binId);
+    }else{
+      // No API key → use snapshot URL (long but works)
+      url=getFallbackPublicUrl();
+    }
+    await navigator.clipboard.writeText(url).catch(()=>{});
+    btn.textContent='✓ コピーしました！';
+    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},2500);
+    showPublicQRWithUrl(url);
+  }catch(e){
+    btn.textContent=orig;btn.disabled=false;
+    // fallback
+    const url=getFallbackPublicUrl();
+    showPublicQRWithUrl(url);
+  }
 }
+
 function showPublicQR(){
+  // Called without generating URL — use existing or fallback
+  const url=PUB_BIN_ID?getShortPublicUrl(PUB_BIN_ID):(RT.binId?getShortPublicUrl(RT.binId):getFallbackPublicUrl());
+  showPublicQRWithUrl(url);
+}
+
+function showPublicQRWithUrl(url){
   const bar=document.getElementById('pub-qr-bar');
   const urlTxt=document.getElementById('pub-url-txt');
   const canvas=document.getElementById('pub-qr-canvas');
-  const url=getPublicUrl();
   urlTxt.textContent=url;
-  bar.style.display=bar.style.display==='none'?'block':'none';
-  if(bar.style.display==='block'){
-    const ctx=canvas.getContext('2d');
+  bar.style.display='block';
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
+  ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('QRコード生成中...',80,80);
+  const img=new Image();img.crossOrigin='anonymous';
+  img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
+  img.onerror=()=>{
     ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
-    ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
-    ctx.fillText('QRコード読み込み中...',80,80);
-    const img=new Image();img.crossOrigin='anonymous';
-    img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
-    img.onerror=()=>{
-      ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
-      ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
-      ctx.fillText('上のURLを',80,65);ctx.fillText('QRコード変換サービスで',80,82);ctx.fillText('生成してください',80,99);
-    };
-    img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
-  }
+    ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+    ctx.fillText('上のURLを',80,65);ctx.fillText('QRサービスで生成してください',80,82);
+  };
+  img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
+}
+
+// Update public bin whenever data changes (if bin exists)
+function updatePublicBinIfExists(){
+  if(!PUB_BIN_ID&&!(RT.binId&&RT.apiKey))return;
+  const targetBin=RT.binId&&RT.apiKey?RT.binId:PUB_BIN_ID;
+  const key=RT.apiKey||'';
+  if(!targetBin)return;
+  const dataToSync={...S};delete dataToSync.sponsors;
+  fetch('https://api.jsonbin.io/v3/b/'+targetBin,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json',...(key?{'X-Master-Key':key}:{})},
+    body:JSON.stringify(dataToSync)
+  }).catch(()=>{});
 }
 
 // ══════════════════════════════════════
@@ -1751,6 +1834,7 @@ const JBIN='https://api.jsonbin.io/v3';
 async function fetchFromBin(binId, apiKey){
   const headers={'Content-Type':'application/json'};
   if(apiKey) headers['X-Master-Key']=apiKey;
+  // Public bins can be read without auth key
   const r=await fetch(JBIN+'/b/'+binId+'/latest',{headers});
   if(!r.ok){
     let detail='';
