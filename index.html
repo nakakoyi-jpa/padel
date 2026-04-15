@@ -2327,4 +2327,149 @@ function doImport(){
     if(raw.startsWith('JPA_DATA:')){
       json = decodeURIComponent(atob(raw.slice(9)));
     } else {
-      
+      // Try raw JSON or old base64
+      try{ json = decodeURIComponent(atob(raw)); } catch(e){ json = raw; }
+    }
+    const loaded = JSON.parse(json);
+    if(!loaded || !loaded.settings) throw new Error('データ形式が正しくありません');
+    S = loaded;
+    persist();
+    updateHeader();
+    closeShare();
+    // Re-render
+    if(cur==='draws') renderDraws();
+    else if(cur==='oop') renderOOP();
+    else if(cur==='public') renderPublic();
+    else renderSettings();
+    alert('✓ インポート完了しました！');
+  }catch(e){
+    errEl.textContent = 'エラー: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+</script>
+
+<!-- SHARE MODAL -->
+<div id="share-mo">
+  <div id="share-box">
+    <h3>🔗 共有</h3>
+    <div class="sh-sub">3つの方法から選べます</div>
+
+    <!-- ① コピペ共有（今すぐ使える） -->
+    <div class="sh-section" style="border-color:var(--bm);background:#f0f7ff">
+      <h4>① データをコピペで共有 <span class="view-badge" style="background:#fff3cd;color:#856404">今すぐ使える</span></h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px">
+        データをテキストでエクスポートし、LINEやメールで送れます。受け取った側がインポートすれば同じ状態になります。
+      </p>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button class="btn bp sm" onclick="doExport()" style="flex:1">📤 データをコピー（エクスポート）</button>
+      </div>
+      <div id="export-area" style="display:none;margin-bottom:8px">
+        <div class="export-box">
+          <textarea class="export-txt" id="export-txt" readonly></textarea>
+        </div>
+        <div style="font-size:10px;color:#666">↑ 全選択してコピーし、相手にLINE・メールで送ってください</div>
+      </div>
+      <div style="border-top:1px solid var(--bb);padding-top:8px;margin-top:4px">
+        <div style="font-size:11px;font-weight:700;color:var(--bd);margin-bottom:6px">受け取ったデータを取り込む（インポート）</div>
+        <textarea class="import-txt" id="import-txt" placeholder="受け取ったデータをここに貼り付けてください..."></textarea>
+        <button class="btn bg2 sm" onclick="doImport()" style="margin-top:6px;width:100%">📥 インポートして反映</button>
+        <div id="import-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
+      </div>
+    </div>
+
+    <!-- ② GitHub Pages（恒久URL・リアルタイム可能） -->
+    <div class="sh-section" style="border-color:#6f42c1;background:#faf5ff">
+      <h4>② GitHub Pages で公開 <span class="view-badge" style="background:#ede9fe;color:#6f42c1;border:1px solid #c4b5fd">恒久URL・無料</span></h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px">
+        一度設定すれば <strong>https://あなた名.github.io/jpa-padel/</strong> という永続URLができます。
+        スマホのQRコードで選手に配布できます。
+      </p>
+      <div class="gh-steps">
+        <strong>設定手順（初回のみ・約5分）</strong><br>
+        1. <a href="https://github.com" target="_blank">github.com</a> で無料アカウント作成<br>
+        2. 「New repository」→ 名前を <code>jpa-padel</code> にして作成<br>
+        3. 「Add file」→「Upload files」→ このHTMLファイルを <code>index.html</code> という名前でアップロード<br>
+        4. Settings → Pages → Branch: main → Save<br>
+        5. 数分後に <code>https://ユーザー名.github.io/jpa-padel/</code> でアクセス可能<br>
+        6. <strong>スコアを更新したら</strong>、このHTMLファイルを上書きアップロードするだけ
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
+    </div>
+
+    <!-- ③ リアルタイム同期（要サーバー環境） -->
+    <div class="sh-section">
+      <h4>③ リアルタイム自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">サーバー環境が必要</span></h4>
+      <p style="font-size:11px;color:#666;margin-bottom:8px">
+        JSONBin.io APIを使います。<br>
+        ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
+        GitHub Pages等のURL（https://）からアクセスした場合のみ使えます。
+      </p>
+      <div id="rt-prompt">
+        <button class="btn bg2 sm" onclick="showRtSetup()" style="width:100%">⚡ リアルタイム同期を設定する（https環境のみ）</button>
+      </div>
+      <div id="rt-setup" style="display:none">
+        <div style="background:white;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px;color:#333;line-height:1.7">
+          <strong>設定手順：</strong><br>
+          1. <a href="https://jsonbin.io" target="_blank" style="color:var(--bm)">jsonbin.io</a> で無料アカウント作成<br>
+          2. API Keys → Secret Key をコピー<br>
+          3. 下に貼り付けて「同期開始」
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input class="sync-api-input" id="rt-apikey" type="password" placeholder="$2a$10$xxxx...">
+          <button class="btn bp sm" onclick="startRealtimeSync(this)">同期開始</button>
+        </div>
+        <div id="rt-setup-err" style="font-size:10px;color:#dc3545;display:none"></div>
+      </div>
+      <div id="rt-active" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="sync-dot ok"></span>
+          <span style="font-size:12px;color:var(--ok);font-weight:700">同期中</span>
+          <span id="rt-bin-id" style="font-size:10px;color:#888;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis"></span>
+          <button class="btn bd2 sm" onclick="stopRealtimeSync()">停止</button>
+        </div>
+        <textarea class="sh-url" id="url-rt-admin" rows="2" readonly placeholder="管理URL（生成中...）"></textarea>
+        <div class="sh-btns" style="margin-bottom:6px">
+          <button class="btn bp sm" onclick="copyUrl('url-rt-admin')">📋 管理URLコピー</button>
+          <button class="btn bs sm" onclick="genQR('url-rt-admin')">QR</button>
+        </div>
+        <textarea class="sh-url" id="url-rt-public" rows="2" readonly placeholder="回覧URL（生成中...）"></textarea>
+        <div class="sh-btns">
+          <button class="btn bp sm" onclick="copyUrl('url-rt-public')">📋 回覧URLコピー</button>
+          <button class="btn bs sm" onclick="genQR('url-rt-public')">QR</button>
+        </div>
+      </div>
+      <span class="rt-badge" id="rt-status-badge" style="display:none">同期中</span>
+    </div>
+
+    <div id="qr-area" style="text-align:center;display:none;margin-top:8px">
+      <canvas id="qr-canvas" width="180" height="180"></canvas>
+      <div style="font-size:10px;color:#888;margin-top:4px" id="qr-label"></div>
+    </div>
+
+    <!-- スナップショットURL（折りたたみ） -->
+    <details style="margin-top:8px">
+      <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
+      <div style="padding:8px 0">
+        <textarea class="sh-url" id="url-full" rows="2" readonly></textarea>
+        <div class="sh-btns" style="margin-bottom:6px">
+          <button class="btn bp sm" onclick="copyUrl('url-full')">📋 管理URL</button>
+          <button class="btn bs sm" onclick="genQR('url-full')">QR</button>
+        </div>
+        <textarea class="sh-url" id="url-public" rows="2" readonly></textarea>
+        <div class="sh-btns">
+          <button class="btn bp sm" onclick="copyUrl('url-public')">📋 回覧URL</button>
+          <button class="btn bs sm" onclick="genQR('url-public')">QR</button>
+        </div>
+      </div>
+    </details>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn bs" onclick="closeShare()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
