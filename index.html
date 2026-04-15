@@ -195,7 +195,7 @@ body.public-only #back-btn,
 body.public-only #sync-bar,
 body.public-only #share-mo,
 body.public-only #pub-bar,
-body.public-only #pub-qr-bar,
+body.public-only #pub-share-panel,
 body.public-only .pdf-btn-bar { display:none!important }
 body.public-only #scr-settings,
 body.public-only #scr-draws,
@@ -394,15 +394,32 @@ body.public-only #pub-header { display:flex!important }
     <div id="pub-bar">
       <span>📋 回覧用（閲覧専用）</span>
       <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn bg2 sm" onclick="copyPublicUrl()" title="外部共有用URL（管理UIなし）をコピー">🔗 外部公開URLをコピー</button>
-        <button class="btn bs sm" onclick="showPublicQR()" title="QRコードを表示">QR</button>
+        <button class="btn bg2 sm" id="pub-share-btn" onclick="openPublicSharePanel()">🔗 外部共有（URL・QR）</button>
         <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
       </div>
     </div>
-    <div id="pub-qr-bar" style="display:none;background:#f0f4fa;border-bottom:1px solid var(--bb);padding:10px;text-align:center">
-      <div style="font-size:11px;color:var(--bm);margin-bottom:6px">外部公開URL（このURLを選手・観客に配布）</div>
-      <div id="pub-url-txt" style="font-size:10px;font-family:monospace;word-break:break-all;color:#333;background:white;padding:6px 8px;border-radius:5px;border:1px solid var(--bb);margin-bottom:8px"></div>
-      <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;margin:0 auto;border-radius:6px"></canvas>
+    <!-- 外部共有パネル -->
+    <div id="pub-share-panel" style="display:none;background:#f0f7ff;border-bottom:2px solid var(--bm);padding:14px 16px">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">🌐 外部公開URL</div>
+          <div style="font-size:10px;color:#666;margin-bottom:6px">このURLを選手・観客に配布してください</div>
+          <div id="pub-url-box" style="background:white;border:1px solid var(--bb);border-radius:6px;padding:8px;font-size:10px;font-family:monospace;word-break:break-all;color:#333;min-height:36px;margin-bottom:8px;cursor:text">
+            <span style="color:#aaa">URLを生成中...</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn bp sm" id="pub-copy-btn" onclick="doCopyPublicUrl()">📋 URLをコピー</button>
+            <button class="btn bs sm" onclick="refreshPublicUrl()">🔄 URLを再生成</button>
+            <button class="btn bs sm" onclick="closePublicSharePanel()">✕ 閉じる</button>
+          </div>
+          <div id="pub-share-status" style="font-size:10px;color:#666;margin-top:6px"></div>
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">📱 QRコード</div>
+          <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;border-radius:8px;border:1px solid var(--bb);background:white"></canvas>
+          <div style="font-size:9px;color:#888;margin-top:4px">スマホでスキャン</div>
+        </div>
+      </div>
     </div>
     <div id="pub-body" style="padding:12px"></div>
     <!-- OOP in public view -->
@@ -1056,6 +1073,47 @@ function buildTournament(catId,cat,sz){
     rDiv.appendChild(col);
   }
   wrap.appendChild(rDiv);body.appendChild(wrap);
+  requestAnimationFrame(()=>drawBracketLines(rDiv,rounds,sz));
+}
+
+function drawBracketLines(rDiv,rounds,sz){
+  const cols=[...rDiv.querySelectorAll('.r-col')];
+  if(cols.length<2)return;
+  for(let ri=0;ri<cols.length-1;ri++){
+    const leftCol=cols[ri],rightCol=cols[ri+1];
+    const leftBoxes=[...leftCol.querySelectorAll('.mb')];
+    const rightBoxes=[...rightCol.querySelectorAll('.mb')];
+    rightBoxes.forEach((rBox,mi)=>{
+      const srcA=leftBoxes[mi*2],srcB=leftBoxes[mi*2+1];
+      if(!srcA||!srcB)return;
+      const rDivRect=rDiv.getBoundingClientRect();
+      const aRect=srcA.getBoundingClientRect();
+      const bRect=srcB.getBoundingClientRect();
+      const rRect=rBox.getBoundingClientRect();
+      const aMid=aRect.top-rDivRect.top+aRect.height/2;
+      const bMid=bRect.top-rDivRect.top+bRect.height/2;
+      const rMid=rRect.top-rDivRect.top+rRect.height/2;
+      const aRight=aRect.right-rDivRect.left;
+      const bRight=bRect.right-rDivRect.left;
+      const rLeft=rRect.left-rDivRect.left;
+      const midX=(aRight+rLeft)/2;
+      addBracketLine(rDiv,aRight,aMid,midX,aMid);
+      addBracketLine(rDiv,bRight,bMid,midX,bMid);
+      addBracketLine(rDiv,midX,aMid,midX,bMid);
+      addBracketLine(rDiv,midX,rMid,rLeft,rMid);
+    });
+  }
+}
+function addBracketLine(parent,x1,y1,x2,y2){
+  const d=document.createElement('div');
+  const isH=Math.abs(y2-y1)<1;
+  if(isH){
+    d.style.cssText='position:absolute;background:var(--bb);height:1.5px;left:'+Math.min(x1,x2)+'px;top:'+(y1-0.5)+'px;width:'+Math.abs(x2-x1)+'px;pointer-events:none;z-index:0';
+  }else{
+    d.style.cssText='position:absolute;background:var(--bb);width:1.5px;left:'+(x1-0.5)+'px;top:'+Math.min(y1,y2)+'px;height:'+Math.abs(y2-y1)+'px;pointer-events:none;z-index:0';
+  }
+  parent.style.position='relative';
+  parent.appendChild(d);
 }
 
 function getSlot(draw,r,mi,side,sz){
@@ -1088,6 +1146,11 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 // Debounce helper — avoid heavy re-renders on every keystroke
 function debounce(fn,ms){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn.apply(this,a),ms);};}
 const debouncedCatGrid=debounce(renderCatGrid,400);
+function formatDateJP(d){
+  if(!d)return '';
+  try{const dt=new Date(d+'T00:00:00');return (dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}
+  catch(e){return d;}
+}
 
 // ══════════════════════════════════════
 //  SCORE MODAL
@@ -1175,7 +1238,6 @@ function saveScore(){
   renderDraws();
   renderOOP(); // always keep OOP in sync
   if(cur==='public')renderPublicOOP();
-  updatePublicBinIfExists();
 }
 function clearScore(){
   const {catId,key}=MS;
@@ -1390,25 +1452,47 @@ function scheduleMatches(matches, courts){
   return scheduled;
 }
 
+// Time label rules per sequential slot index (0-based)
+const OOP_TIME_RULES=[
+  {cls:'t-start', label:'第1試合　9:00 開始'},
+  {cls:'t-fb',    label:'Follow by'},
+  {cls:'t-nb',    label:'Not Before　10:00'},
+  {cls:'t-fb',    label:'Follow by'},
+  {cls:'t-nb',    label:'Not Before　12:00'},
+  {cls:'t-fb',    label:'Follow by'},
+  {cls:'t-nb',    label:'Not Before　14:00'},
+  {cls:'t-fb',    label:'Follow by'},
+];
+function getOOPTimeRule(idx){return OOP_TIME_RULES[Math.min(idx,OOP_TIME_RULES.length-1)];}
+
+let _oopDragSrc=null;
+
 function renderOOPTable(matches,containerId,courts){
   matches=matches.filter(m=>!m.isByeMatch&&m.p1!=='BYE'&&m.p2!=='BYE');
+  const el=document.getElementById(containerId);
   if(!matches.length){
-    document.getElementById(containerId).innerHTML='<div style="padding:20px;text-align:center;color:#999">試合がありません</div>';return;
+    el.innerHTML='<div style="padding:20px;text-align:center;color:#999">試合がありません</div>';return;
   }
 
   const sched=scheduleMatches(matches,courts);
   const bySlot={};
   sched.forEach(({court,slot,match:m})=>{
-    if(!bySlot[slot])bySlot[slot]={};
-    bySlot[slot][court]=m;
+    if(!bySlot[slot])bySlot[slot]={};bySlot[slot][court]=m;
   });
   const slots=Object.keys(bySlot).map(Number).sort((a,b)=>a-b);
 
-  let html='<table class="oop-t"><thead><tr><th>試合順</th>';
+  let html='<table class="oop-t" id="'+containerId+'-tbl"><thead><tr>'
+    +'<th style="min-width:150px">時間 / 試合</th>';
   for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
   html+='</tr></thead><tbody>';
-  slots.forEach(sl=>{
-    html+='<tr><td class="sl">第'+(sl+1)+'試合</td>';
+
+  slots.forEach((sl,si)=>{
+    const rule=getOOPTimeRule(si);
+    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'">'
+      +'<td style="padding:5px 8px;vertical-align:middle">'
+      +'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
+      +'<div class="oop-slot">第'+(si+1)+'試合</div>'
+      +'</td>';
     for(let c=1;c<=courts;c++){
       const m=bySlot[sl]&&bySlot[sl][c];
       if(!m){html+='<td><div class="ec">—</div></td>';continue;}
@@ -1423,7 +1507,45 @@ function renderOOPTable(matches,containerId,courts){
     html+='</tr>';
   });
   html+='</tbody></table>';
-  document.getElementById(containerId).innerHTML=html;
+  el.innerHTML=html;
+
+  // Drag-to-reorder
+  el.querySelectorAll('.oop-drag-row').forEach(row=>{
+    row.addEventListener('dragstart',e=>{
+      _oopDragSrc={cid:containerId,si:parseInt(row.dataset.si)};
+      e.dataTransfer.effectAllowed='move';
+      row.style.opacity='0.5';
+    });
+    row.addEventListener('dragend',()=>{
+      row.style.opacity='';
+      el.querySelectorAll('.oop-drag-row').forEach(r=>r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover',e=>{
+      e.preventDefault();
+      el.querySelectorAll('.oop-drag-row').forEach(r=>r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(!_oopDragSrc||_oopDragSrc.cid!==containerId)return;
+      const tbl=el.querySelector('#'+containerId+'-tbl tbody');
+      const rows=[...tbl.querySelectorAll('tr')];
+      const si=_oopDragSrc.si,ti=parseInt(row.dataset.si);
+      if(si===ti)return;
+      const srcRow=rows[si],tgtRow=rows[ti];
+      if(si<ti)tbl.insertBefore(srcRow,tgtRow.nextSibling);
+      else tbl.insertBefore(srcRow,tgtRow);
+      [...tbl.querySelectorAll('tr')].forEach((r,i)=>{
+        r.dataset.si=i;
+        const rule=getOOPTimeRule(i);
+        const span=r.querySelector('.oop-time');
+        if(span){span.className='oop-time '+rule.cls;span.textContent=rule.label;}
+        const sd=r.querySelector('.oop-slot');
+        if(sd)sd.textContent='第'+(i+1)+'試合';
+      });
+      _oopDragSrc=null;
+    });
+  });
 }
 
 function renderOOP(){
@@ -1480,6 +1602,11 @@ function renderOOP(){
   }
 
   alerts.innerHTML=alertHTML;
+
+  // Date labels in day headers
+  function fmtDJ(d){if(!d)return '';try{const dt=new Date(d+'T00:00:00');return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}catch(e){return '';}}
+  const dh1=document.querySelector('.day-hdr.d1');if(dh1)dh1.textContent='📅 1日目（1R・2R）'+fmtDJ(S.settings.d1);
+  const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（準決勝・決勝）'+fmtDJ(S.settings.d2);
 
   renderOOPTable(day1,'oop-d1',courts);
   const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
@@ -1659,128 +1786,175 @@ function applyPublicOnlyUI(){
   renderPublic();
 }
 
-// ── Short URL via JSONBin public bin ──
+// ══════════════════════════════════════
+//  PUBLIC SHARING — URL & QR
+// ══════════════════════════════════════
 let PUB_BIN_ID='';
-(function loadPubBin(){
-  try{const v=localStorage.getItem('jpa_pub_bin');if(v)PUB_BIN_ID=v;}catch(e){}
-})();
+(function(){try{const v=localStorage.getItem('jpa_pub_bin');if(v)PUB_BIN_ID=v;}catch(e){}})();
 
-async function getOrCreatePublicBin(){
-  // If RT sync is active → reuse that binId (already has data)
-  if(RT.binId&&RT.apiKey) return {binId:RT.binId,needsKey:false};
-  // If we already created a public bin, reuse it (after refreshing data)
-  if(PUB_BIN_ID){
-    // Refresh the public bin with latest data
-    try{
-      await fetch('https://api.jsonbin.io/v3/b/'+PUB_BIN_ID,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(S)
-      });
-    }catch(e){}
-    return {binId:PUB_BIN_ID,needsKey:false};
-  }
-  // Create a new PUBLIC bin (no API key required to read)
-  // Requires at least an API key for creation — use RT key if available
-  // If no key: fallback to snapshot URL
-  if(!RT.apiKey) return null;
-  try{
-    const dataToSync={...S};delete dataToSync.sponsors;
-    const r=await fetch('https://api.jsonbin.io/v3/b',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'X-Master-Key':RT.apiKey,
-        'X-Bin-Name':'JPA-Public',
-        'X-Bin-Private':'false'
-      },
-      body:JSON.stringify(dataToSync)
-    });
-    if(!r.ok)return null;
-    const j=await r.json();
-    PUB_BIN_ID=j.metadata.id;
-    localStorage.setItem('jpa_pub_bin',PUB_BIN_ID);
-    return {binId:PUB_BIN_ID,needsKey:false};
-  }catch(e){return null;}
+const JBIN_PUBLIC='https://api.jsonbin.io/v3';
+
+// Strip sponsors & build sync-safe data object
+function buildSyncData(){
+  const d={settings:S.settings,cats:S.cats,draws:{}};
+  Object.entries(S.draws).forEach(([k,v])=>{
+    d.draws[k]={drawSize:v.drawSize,pairs:v.pairs,winners:v.winners,scores:v.scores};
+  });
+  return d;
 }
 
-function getShortPublicUrl(binId){
-  const base=location.href.split('#')[0].split('?')[0];
-  return base+'?view=public&bin='+binId;
-}
+function getBaseUrl(){return location.href.split('#')[0].split('?')[0];}
 
-function getFallbackPublicUrl(){
-  // Long snapshot URL fallback
-  const base=location.href.split('#')[0].split('?')[0];
+// Make a short URL from a bin ID
+function shortUrl(binId){return getBaseUrl()+'?view=public&bin='+binId;}
+
+// Fallback: Base64 snapshot URL
+function snapshotUrl(){
+  const base=getBaseUrl();
   try{
-    const encoded=btoa(encodeURIComponent(JSON.stringify(S)));
-    return base+'?view=public#d='+encoded;
+    const enc=btoa(encodeURIComponent(JSON.stringify(buildSyncData())));
+    return base+'?view=public#d='+enc;
   }catch(e){return base+'?view=public';}
 }
 
-async function copyPublicUrl(){
-  const btn=event.target;
-  const orig=btn.textContent;
-  btn.textContent='⏳ URL生成中...';btn.disabled=true;
+// Create a PUBLIC JSONBin (readable without API key)
+async function createPublicBin(apiKey){
+  const data=buildSyncData();
+  const r=await fetch(JBIN_PUBLIC+'/b',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'X-Master-Key':apiKey,
+      'X-Bin-Name':'JPA-Public-View',
+      'X-Bin-Private':'false'
+    },
+    body:JSON.stringify(data)
+  });
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  return j.metadata.id;
+}
+
+// Update existing public bin
+async function updatePublicBin(binId,apiKey){
+  const data=buildSyncData();
+  const headers={'Content-Type':'application/json'};
+  if(apiKey)headers['X-Master-Key']=apiKey;
+  const r=await fetch(JBIN_PUBLIC+'/b/'+binId,{
+    method:'PUT',
+    headers,
+    body:JSON.stringify(data)
+  });
+  if(!r.ok)throw new Error('HTTP '+r.status);
+}
+
+// Generate & display URL + QR
+let _currentPubUrl='';
+
+async function openPublicSharePanel(){
+  const panel=document.getElementById('pub-share-panel');
+  panel.style.display='block';
+  const status=document.getElementById('pub-share-status');
+  const urlBox=document.getElementById('pub-url-box');
+  urlBox.innerHTML='<span style="color:#aaa">⏳ URL生成中...</span>';
+  status.textContent='';
+  document.getElementById('pub-copy-btn').disabled=true;
+
+  const apiKey=RT.apiKey||'';
   try{
-    let url;
-    const result=await getOrCreatePublicBin();
-    if(result){
-      url=getShortPublicUrl(result.binId);
-    }else{
-      // No API key → use snapshot URL (long but works)
-      url=getFallbackPublicUrl();
+    let binId=PUB_BIN_ID;
+    if(RT.binId&&apiKey){
+      // Use the RT bin (already has data, keep in sync)
+      binId=RT.binId;
+      await updatePublicBin(binId,apiKey).catch(()=>{});
+    }else if(binId&&apiKey){
+      // Existing public bin — refresh data
+      await updatePublicBin(binId,apiKey).catch(()=>{});
+    }else if(apiKey){
+      // No bin yet — create one
+      status.textContent='⏳ 公開Binを作成中...';
+      binId=await createPublicBin(apiKey);
+      PUB_BIN_ID=binId;
+      localStorage.setItem('jpa_pub_bin',binId);
     }
-    await navigator.clipboard.writeText(url).catch(()=>{});
-    btn.textContent='✓ コピーしました！';
-    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},2500);
-    showPublicQRWithUrl(url);
+
+    if(binId){
+      _currentPubUrl=shortUrl(binId);
+      status.textContent='✅ JSONBin.io経由の短いURLです（リアルタイム更新対応）';
+    }else{
+      // No API key — use snapshot URL
+      _currentPubUrl=snapshotUrl();
+      status.textContent='⚠️ スナップショットURL（リアルタイム同期なし）。JSONBinのAPIキーを設定すると短いURLになります。';
+    }
   }catch(e){
-    btn.textContent=orig;btn.disabled=false;
-    // fallback
-    const url=getFallbackPublicUrl();
-    showPublicQRWithUrl(url);
+    _currentPubUrl=snapshotUrl();
+    status.textContent='⚠️ Bin作成エラー。スナップショットURLを使用します: '+e.message;
   }
+
+  displayPublicUrl(_currentPubUrl);
 }
 
-function showPublicQR(){
-  // Called without generating URL — use existing or fallback
-  const url=PUB_BIN_ID?getShortPublicUrl(PUB_BIN_ID):(RT.binId?getShortPublicUrl(RT.binId):getFallbackPublicUrl());
-  showPublicQRWithUrl(url);
+function displayPublicUrl(url){
+  const urlBox=document.getElementById('pub-url-box');
+  urlBox.textContent=url;
+  document.getElementById('pub-copy-btn').disabled=false;
+  generateQR(url);
 }
 
-function showPublicQRWithUrl(url){
-  const bar=document.getElementById('pub-qr-bar');
-  const urlTxt=document.getElementById('pub-url-txt');
+function generateQR(url){
   const canvas=document.getElementById('pub-qr-canvas');
-  urlTxt.textContent=url;
-  bar.style.display='block';
   const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
-  ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
-  ctx.fillText('QRコード生成中...',80,80);
+  ctx.fillStyle='white';ctx.fillRect(0,0,160,160);
+  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('生成中...',80,84);
   const img=new Image();img.crossOrigin='anonymous';
   img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
   img.onerror=()=>{
-    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
+    ctx.fillStyle='white';ctx.fillRect(0,0,160,160);
     ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
-    ctx.fillText('上のURLを',80,65);ctx.fillText('QRサービスで生成してください',80,82);
+    ctx.fillText('上のURLをQRコード',80,68);
+    ctx.fillText('生成サービスで',80,84);
+    ctx.fillText('読み込んでください',80,100);
   };
   img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
 }
 
-// Update public bin whenever data changes (if bin exists)
+async function doCopyPublicUrl(){
+  const btn=document.getElementById('pub-copy-btn');
+  const url=_currentPubUrl||snapshotUrl();
+  try{
+    await navigator.clipboard.writeText(url);
+    const orig=btn.textContent;
+    btn.textContent='✓ コピーしました！';
+    btn.style.background='#1a7a4a';
+    setTimeout(()=>{btn.textContent=orig;btn.style.background='';},2000);
+  }catch(e){
+    // Fallback for browsers without clipboard API
+    const ta=document.createElement('textarea');
+    ta.value=url;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent='✓ コピー完了';
+    setTimeout(()=>{btn.textContent='📋 URLをコピー';},2000);
+  }
+}
+
+async function refreshPublicUrl(){
+  // Force regenerate (clear cached bin for fresh snapshot or re-upload)
+  await openPublicSharePanel();
+}
+
+function closePublicSharePanel(){
+  document.getElementById('pub-share-panel').style.display='none';
+}
+
+// Update public bin on score save (background, silent)
 function updatePublicBinIfExists(){
-  if(!PUB_BIN_ID&&!(RT.binId&&RT.apiKey))return;
-  const targetBin=RT.binId&&RT.apiKey?RT.binId:PUB_BIN_ID;
-  const key=RT.apiKey||'';
-  if(!targetBin)return;
-  const dataToSync={...S};delete dataToSync.sponsors;
-  fetch('https://api.jsonbin.io/v3/b/'+targetBin,{
-    method:'PUT',
-    headers:{'Content-Type':'application/json',...(key?{'X-Master-Key':key}:{})},
-    body:JSON.stringify(dataToSync)
-  }).catch(()=>{});
+  const apiKey=RT.apiKey||'';
+  const binId=RT.binId||PUB_BIN_ID;
+  if(!binId||!apiKey)return;
+  updatePublicBin(binId,apiKey).catch(()=>{});
 }
 
 // ══════════════════════════════════════
@@ -2153,149 +2327,4 @@ function doImport(){
     if(raw.startsWith('JPA_DATA:')){
       json = decodeURIComponent(atob(raw.slice(9)));
     } else {
-      // Try raw JSON or old base64
-      try{ json = decodeURIComponent(atob(raw)); } catch(e){ json = raw; }
-    }
-    const loaded = JSON.parse(json);
-    if(!loaded || !loaded.settings) throw new Error('データ形式が正しくありません');
-    S = loaded;
-    persist();
-    updateHeader();
-    closeShare();
-    // Re-render
-    if(cur==='draws') renderDraws();
-    else if(cur==='oop') renderOOP();
-    else if(cur==='public') renderPublic();
-    else renderSettings();
-    alert('✓ インポート完了しました！');
-  }catch(e){
-    errEl.textContent = 'エラー: ' + e.message;
-    errEl.style.display = 'block';
-  }
-}
-
-</script>
-
-<!-- SHARE MODAL -->
-<div id="share-mo">
-  <div id="share-box">
-    <h3>🔗 共有</h3>
-    <div class="sh-sub">3つの方法から選べます</div>
-
-    <!-- ① コピペ共有（今すぐ使える） -->
-    <div class="sh-section" style="border-color:var(--bm);background:#f0f7ff">
-      <h4>① データをコピペで共有 <span class="view-badge" style="background:#fff3cd;color:#856404">今すぐ使える</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        データをテキストでエクスポートし、LINEやメールで送れます。受け取った側がインポートすれば同じ状態になります。
-      </p>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button class="btn bp sm" onclick="doExport()" style="flex:1">📤 データをコピー（エクスポート）</button>
-      </div>
-      <div id="export-area" style="display:none;margin-bottom:8px">
-        <div class="export-box">
-          <textarea class="export-txt" id="export-txt" readonly></textarea>
-        </div>
-        <div style="font-size:10px;color:#666">↑ 全選択してコピーし、相手にLINE・メールで送ってください</div>
-      </div>
-      <div style="border-top:1px solid var(--bb);padding-top:8px;margin-top:4px">
-        <div style="font-size:11px;font-weight:700;color:var(--bd);margin-bottom:6px">受け取ったデータを取り込む（インポート）</div>
-        <textarea class="import-txt" id="import-txt" placeholder="受け取ったデータをここに貼り付けてください..."></textarea>
-        <button class="btn bg2 sm" onclick="doImport()" style="margin-top:6px;width:100%">📥 インポートして反映</button>
-        <div id="import-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
-      </div>
-    </div>
-
-    <!-- ② GitHub Pages（恒久URL・リアルタイム可能） -->
-    <div class="sh-section" style="border-color:#6f42c1;background:#faf5ff">
-      <h4>② GitHub Pages で公開 <span class="view-badge" style="background:#ede9fe;color:#6f42c1;border:1px solid #c4b5fd">恒久URL・無料</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        一度設定すれば <strong>https://あなた名.github.io/jpa-padel/</strong> という永続URLができます。
-        スマホのQRコードで選手に配布できます。
-      </p>
-      <div class="gh-steps">
-        <strong>設定手順（初回のみ・約5分）</strong><br>
-        1. <a href="https://github.com" target="_blank">github.com</a> で無料アカウント作成<br>
-        2. 「New repository」→ 名前を <code>jpa-padel</code> にして作成<br>
-        3. 「Add file」→「Upload files」→ このHTMLファイルを <code>index.html</code> という名前でアップロード<br>
-        4. Settings → Pages → Branch: main → Save<br>
-        5. 数分後に <code>https://ユーザー名.github.io/jpa-padel/</code> でアクセス可能<br>
-        6. <strong>スコアを更新したら</strong>、このHTMLファイルを上書きアップロードするだけ
-      </div>
-      <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
-    </div>
-
-    <!-- ③ リアルタイム同期（要サーバー環境） -->
-    <div class="sh-section">
-      <h4>③ リアルタイム自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">サーバー環境が必要</span></h4>
-      <p style="font-size:11px;color:#666;margin-bottom:8px">
-        JSONBin.io APIを使います。<br>
-        ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
-        GitHub Pages等のURL（https://）からアクセスした場合のみ使えます。
-      </p>
-      <div id="rt-prompt">
-        <button class="btn bg2 sm" onclick="showRtSetup()" style="width:100%">⚡ リアルタイム同期を設定する（https環境のみ）</button>
-      </div>
-      <div id="rt-setup" style="display:none">
-        <div style="background:white;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px;color:#333;line-height:1.7">
-          <strong>設定手順：</strong><br>
-          1. <a href="https://jsonbin.io" target="_blank" style="color:var(--bm)">jsonbin.io</a> で無料アカウント作成<br>
-          2. API Keys → Secret Key をコピー<br>
-          3. 下に貼り付けて「同期開始」
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <input class="sync-api-input" id="rt-apikey" type="password" placeholder="$2a$10$xxxx...">
-          <button class="btn bp sm" onclick="startRealtimeSync(this)">同期開始</button>
-        </div>
-        <div id="rt-setup-err" style="font-size:10px;color:#dc3545;display:none"></div>
-      </div>
-      <div id="rt-active" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="sync-dot ok"></span>
-          <span style="font-size:12px;color:var(--ok);font-weight:700">同期中</span>
-          <span id="rt-bin-id" style="font-size:10px;color:#888;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis"></span>
-          <button class="btn bd2 sm" onclick="stopRealtimeSync()">停止</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-admin" rows="2" readonly placeholder="管理URL（生成中...）"></textarea>
-        <div class="sh-btns" style="margin-bottom:6px">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-admin')">📋 管理URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-admin')">QR</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-public" rows="2" readonly placeholder="回覧URL（生成中...）"></textarea>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-public')">📋 回覧URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-public')">QR</button>
-        </div>
-      </div>
-      <span class="rt-badge" id="rt-status-badge" style="display:none">同期中</span>
-    </div>
-
-    <div id="qr-area" style="text-align:center;display:none;margin-top:8px">
-      <canvas id="qr-canvas" width="180" height="180"></canvas>
-      <div style="font-size:10px;color:#888;margin-top:4px" id="qr-label"></div>
-    </div>
-
-    <!-- スナップショットURL（折りたたみ） -->
-    <details style="margin-top:8px">
-      <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
-      <div style="padding:8px 0">
-        <textarea class="sh-url" id="url-full" rows="2" readonly></textarea>
-        <div class="sh-btns" style="margin-bottom:6px">
-          <button class="btn bp sm" onclick="copyUrl('url-full')">📋 管理URL</button>
-          <button class="btn bs sm" onclick="genQR('url-full')">QR</button>
-        </div>
-        <textarea class="sh-url" id="url-public" rows="2" readonly></textarea>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyUrl('url-public')">📋 回覧URL</button>
-          <button class="btn bs sm" onclick="genQR('url-public')">QR</button>
-        </div>
-      </div>
-    </details>
-
-    <div style="display:flex;justify-content:flex-end;margin-top:12px">
-      <button class="btn bs" onclick="closeShare()">閉じる</button>
-    </div>
-  </div>
-</div>
-
-</body>
-</html>
+      
