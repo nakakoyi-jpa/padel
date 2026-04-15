@@ -195,7 +195,7 @@ body.public-only #back-btn,
 body.public-only #sync-bar,
 body.public-only #share-mo,
 body.public-only #pub-bar,
-body.public-only #pub-share-panel,
+body.public-only #pub-qr-bar,
 body.public-only .pdf-btn-bar { display:none!important }
 body.public-only #scr-settings,
 body.public-only #scr-draws,
@@ -394,32 +394,15 @@ body.public-only #pub-header { display:flex!important }
     <div id="pub-bar">
       <span>📋 回覧用（閲覧専用）</span>
       <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn bg2 sm" id="pub-share-btn" onclick="openPublicSharePanel()">🔗 外部共有（URL・QR）</button>
+        <button class="btn bg2 sm" onclick="copyPublicUrl()" title="外部共有用URL（管理UIなし）をコピー">🔗 外部公開URLをコピー</button>
+        <button class="btn bs sm" onclick="showPublicQR()" title="QRコードを表示">QR</button>
         <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
       </div>
     </div>
-    <!-- 外部共有パネル -->
-    <div id="pub-share-panel" style="display:none;background:#f0f7ff;border-bottom:2px solid var(--bm);padding:14px 16px">
-      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">🌐 外部公開URL</div>
-          <div style="font-size:10px;color:#666;margin-bottom:6px">このURLを選手・観客に配布してください</div>
-          <div id="pub-url-box" style="background:white;border:1px solid var(--bb);border-radius:6px;padding:8px;font-size:10px;font-family:monospace;word-break:break-all;color:#333;min-height:36px;margin-bottom:8px;cursor:text">
-            <span style="color:#aaa">URLを生成中...</span>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn bp sm" id="pub-copy-btn" onclick="doCopyPublicUrl()">📋 URLをコピー</button>
-            <button class="btn bs sm" onclick="refreshPublicUrl()">🔄 URLを再生成</button>
-            <button class="btn bs sm" onclick="closePublicSharePanel()">✕ 閉じる</button>
-          </div>
-          <div id="pub-share-status" style="font-size:10px;color:#666;margin-top:6px"></div>
-        </div>
-        <div style="text-align:center;flex-shrink:0">
-          <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">📱 QRコード</div>
-          <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;border-radius:8px;border:1px solid var(--bb);background:white"></canvas>
-          <div style="font-size:9px;color:#888;margin-top:4px">スマホでスキャン</div>
-        </div>
-      </div>
+    <div id="pub-qr-bar" style="display:none;background:#f0f4fa;border-bottom:1px solid var(--bb);padding:10px;text-align:center">
+      <div style="font-size:11px;color:var(--bm);margin-bottom:6px">外部公開URL（このURLを選手・観客に配布）</div>
+      <div id="pub-url-txt" style="font-size:10px;font-family:monospace;word-break:break-all;color:#333;background:white;padding:6px 8px;border-radius:5px;border:1px solid var(--bb);margin-bottom:8px"></div>
+      <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;margin:0 auto;border-radius:6px"></canvas>
     </div>
     <div id="pub-body" style="padding:12px"></div>
     <!-- OOP in public view -->
@@ -1786,175 +1769,80 @@ function applyPublicOnlyUI(){
   renderPublic();
 }
 
-// ══════════════════════════════════════
-//  PUBLIC SHARING — URL & QR
-// ══════════════════════════════════════
+// ── Short URL via JSONBin public bin ──
 let PUB_BIN_ID='';
-(function(){try{const v=localStorage.getItem('jpa_pub_bin');if(v)PUB_BIN_ID=v;}catch(e){}})();
+(function loadPubBin(){
+  try{const v=localStorage.getItem('jpa_pub_bin');if(v)PUB_BIN_ID=v;}catch(e){}
+})();
 
-const JBIN_PUBLIC='https://api.jsonbin.io/v3';
-
-// Strip sponsors & build sync-safe data object
-function buildSyncData(){
-  const d={settings:S.settings,cats:S.cats,draws:{}};
-  Object.entries(S.draws).forEach(([k,v])=>{
-    d.draws[k]={drawSize:v.drawSize,pairs:v.pairs,winners:v.winners,scores:v.scores};
+function buildPublicUrl(){
+  const base=location.href.split('#')[0].split('?')[0];
+  const slim={settings:S.settings,cats:S.cats,draws:{}};
+  Object.entries(S.draws).forEach(([k,d])=>{
+    slim.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners,scores:d.scores};
   });
-  return d;
-}
-
-function getBaseUrl(){return location.href.split('#')[0].split('?')[0];}
-
-// Make a short URL from a bin ID
-function shortUrl(binId){return getBaseUrl()+'?view=public&bin='+binId;}
-
-// Fallback: Base64 snapshot URL
-function snapshotUrl(){
-  const base=getBaseUrl();
   try{
-    const enc=btoa(encodeURIComponent(JSON.stringify(buildSyncData())));
-    return base+'?view=public#d='+enc;
+    const encoded=btoa(encodeURIComponent(JSON.stringify(slim)));
+    const full=base+'?view=public#d='+encoded;
+    if(full.length<=300)return full;
+    const slimmer={settings:S.settings,cats:S.cats,draws:{}};
+    Object.entries(S.draws).forEach(([k,d])=>{
+      slimmer.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners};
+    });
+    const enc2=btoa(encodeURIComponent(JSON.stringify(slimmer)));
+    const url2=base+'?view=public#d='+enc2;
+    if(url2.length<=300)return url2;
+    return base+'?view=public';
   }catch(e){return base+'?view=public';}
 }
 
-// Create a PUBLIC JSONBin (readable without API key)
-async function createPublicBin(apiKey){
-  const data=buildSyncData();
-  const r=await fetch(JBIN_PUBLIC+'/b',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'X-Master-Key':apiKey,
-      'X-Bin-Name':'JPA-Public-View',
-      'X-Bin-Private':'false'
-    },
-    body:JSON.stringify(data)
-  });
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  return j.metadata.id;
-}
-
-// Update existing public bin
-async function updatePublicBin(binId,apiKey){
-  const data=buildSyncData();
-  const headers={'Content-Type':'application/json'};
-  if(apiKey)headers['X-Master-Key']=apiKey;
-  const r=await fetch(JBIN_PUBLIC+'/b/'+binId,{
-    method:'PUT',
-    headers,
-    body:JSON.stringify(data)
-  });
-  if(!r.ok)throw new Error('HTTP '+r.status);
-}
-
-// Generate & display URL + QR
-let _currentPubUrl='';
-
-async function openPublicSharePanel(){
-  const panel=document.getElementById('pub-share-panel');
-  panel.style.display='block';
-  const status=document.getElementById('pub-share-status');
-  const urlBox=document.getElementById('pub-url-box');
-  urlBox.innerHTML='<span style="color:#aaa">⏳ URL生成中...</span>';
-  status.textContent='';
-  document.getElementById('pub-copy-btn').disabled=true;
-
-  const apiKey=RT.apiKey||'';
+async function copyPublicUrl(){
+  const btn=event.target;
+  const orig=btn.textContent;
+  const url=buildPublicUrl();
   try{
-    let binId=PUB_BIN_ID;
-    if(RT.binId&&apiKey){
-      // Use the RT bin (already has data, keep in sync)
-      binId=RT.binId;
-      await updatePublicBin(binId,apiKey).catch(()=>{});
-    }else if(binId&&apiKey){
-      // Existing public bin — refresh data
-      await updatePublicBin(binId,apiKey).catch(()=>{});
-    }else if(apiKey){
-      // No bin yet — create one
-      status.textContent='⏳ 公開Binを作成中...';
-      binId=await createPublicBin(apiKey);
-      PUB_BIN_ID=binId;
-      localStorage.setItem('jpa_pub_bin',binId);
-    }
-
-    if(binId){
-      _currentPubUrl=shortUrl(binId);
-      status.textContent='✅ JSONBin.io経由の短いURLです（リアルタイム更新対応）';
-    }else{
-      // No API key — use snapshot URL
-      _currentPubUrl=snapshotUrl();
-      status.textContent='⚠️ スナップショットURL（リアルタイム同期なし）。JSONBinのAPIキーを設定すると短いURLになります。';
-    }
-  }catch(e){
-    _currentPubUrl=snapshotUrl();
-    status.textContent='⚠️ Bin作成エラー。スナップショットURLを使用します: '+e.message;
-  }
-
-  displayPublicUrl(_currentPubUrl);
+    await navigator.clipboard.writeText(url);
+    btn.textContent='✓ コピーしました！';
+    setTimeout(()=>{btn.textContent=orig;},2000);
+  }catch(e){prompt('URLをコピーしてください:',url);}
+  showPublicQRWithUrl(url);
 }
 
-function displayPublicUrl(url){
-  const urlBox=document.getElementById('pub-url-box');
-  urlBox.textContent=url;
-  document.getElementById('pub-copy-btn').disabled=false;
-  generateQR(url);
+function showPublicQR(){
+  showPublicQRWithUrl(buildPublicUrl());
 }
-
-function generateQR(url){
+function showPublicQRWithUrl(url){
+  const bar=document.getElementById('pub-qr-bar');
+  const urlTxt=document.getElementById('pub-url-txt');
   const canvas=document.getElementById('pub-qr-canvas');
+  urlTxt.textContent=url;
+  bar.style.display='block';
   const ctx=canvas.getContext('2d');
-  ctx.fillStyle='white';ctx.fillRect(0,0,160,160);
-  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='center';
-  ctx.fillText('生成中...',80,84);
+  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
+  ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('QRコード生成中...',80,80);
   const img=new Image();img.crossOrigin='anonymous';
   img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
   img.onerror=()=>{
-    ctx.fillStyle='white';ctx.fillRect(0,0,160,160);
+    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
     ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
-    ctx.fillText('上のURLをQRコード',80,68);
-    ctx.fillText('生成サービスで',80,84);
-    ctx.fillText('読み込んでください',80,100);
+    ctx.fillText('上のURLを',80,65);ctx.fillText('QRサービスで生成してください',80,82);
   };
   img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
 }
 
-async function doCopyPublicUrl(){
-  const btn=document.getElementById('pub-copy-btn');
-  const url=_currentPubUrl||snapshotUrl();
-  try{
-    await navigator.clipboard.writeText(url);
-    const orig=btn.textContent;
-    btn.textContent='✓ コピーしました！';
-    btn.style.background='#1a7a4a';
-    setTimeout(()=>{btn.textContent=orig;btn.style.background='';},2000);
-  }catch(e){
-    // Fallback for browsers without clipboard API
-    const ta=document.createElement('textarea');
-    ta.value=url;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent='✓ コピー完了';
-    setTimeout(()=>{btn.textContent='📋 URLをコピー';},2000);
-  }
-}
-
-async function refreshPublicUrl(){
-  // Force regenerate (clear cached bin for fresh snapshot or re-upload)
-  await openPublicSharePanel();
-}
-
-function closePublicSharePanel(){
-  document.getElementById('pub-share-panel').style.display='none';
-}
-
-// Update public bin on score save (background, silent)
+// Update public bin whenever data changes (if bin exists)
 function updatePublicBinIfExists(){
-  const apiKey=RT.apiKey||'';
-  const binId=RT.binId||PUB_BIN_ID;
-  if(!binId||!apiKey)return;
-  updatePublicBin(binId,apiKey).catch(()=>{});
+  if(!PUB_BIN_ID&&!(RT.binId&&RT.apiKey))return;
+  const targetBin=RT.binId&&RT.apiKey?RT.binId:PUB_BIN_ID;
+  const key=RT.apiKey||'';
+  if(!targetBin)return;
+  const dataToSync={...S};delete dataToSync.sponsors;
+  fetch('https://api.jsonbin.io/v3/b/'+targetBin,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json',...(key?{'X-Master-Key':key}:{})},
+    body:JSON.stringify(dataToSync)
+  }).catch(()=>{});
 }
 
 // ══════════════════════════════════════
