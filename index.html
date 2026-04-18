@@ -1369,67 +1369,100 @@ function getCatMatches(cat){
 function scheduleMatches(matches, courts){
   // ══ GOAL: pack all matches so every court is filled in every time slot (no gaps).
   //
-  // RR rules:
-  //   rrRound 0 → 1st league match (day1)
-  //   rrRound 1 → 2nd league match (day1), must have ≥2 matches between it and rrRound 0
-  //   rrRound 2 → 3rd league match (day2, handled by renderOOP, not here)
+  // Rules:
+  //   DAY1 – RR:
+  //     rrRound 0 → 1st league match
+  //     rrRound 1 → 2nd league match (≥2 match-slots gap from rrRound 0)
+  //   DAY2 – Tournament:
+  //     SF (準決勝) first, then 2 match-slots interval, then Final (決勝)
+  //     Each SF→interval→Final per category must be respected across all categories.
   //
   // Algorithm:
-  //   Build an ordered queue of matches:
-  //     [rrR0 matches] → [filler matches (non-RR)] → [rrR1 matches] → [remaining non-RR]
-  //   The filler between rrR0 and rrR1 must be ≥2 time-slots worth (= 2×courts matches).
-  //   If not enough fillers, insert INTERVAL markers to ensure the gap.
-  //   Then assign the whole queue to courts using a cursor (round-robin),
-  //   which guarantees every slot is fully packed.
+  //   Build an ordered queue, insert INTERVAL markers where gaps are needed,
+  //   then assign to courts with cursor to fill every slot.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  const rrR0=[], rrR1=[], nonRR=[];
+  const rrR0=[], rrR1=[], sfMatches=[], finalMatches=[], otherMatches=[];
   matches.forEach(m=>{
-    if(m._interval) return; // skip stale interval markers
-    if(m.round==='リーグ'&&m.rrRound===0) rrR0.push(m);
-    else if(m.round==='リーグ'&&m.rrRound===1) rrR1.push(m);
-    else nonRR.push(m);
+    if(m._interval) return;
+    if(m.round==='リーグ'&&m.rrRound===0)      rrR0.push(m);
+    else if(m.round==='リーグ'&&m.rrRound===1)  rrR1.push(m);
+    else if(m.round==='準決勝')                  sfMatches.push(m);
+    else if(m.round==='決勝')                    finalMatches.push(m);
+    else                                          otherMatches.push(m);
   });
   rrR0.sort((a,b)=>b.age-a.age);
   rrR1.sort((a,b)=>b.age-a.age);
-  nonRR.sort((a,b)=>b.age-a.age);
+  sfMatches.sort((a,b)=>b.age-a.age);
+  finalMatches.sort((a,b)=>b.age-a.age);
+  otherMatches.sort((a,b)=>b.age-a.age);
 
-  const hasRR = rrR0.length>0&&rrR1.length>0;
-  const minFill = hasRR ? 2*courts : 0; // matches needed between RR round 0 and round 1
-
-  // Build the ordered match queue
   const queue=[];
+  let ivCount=0; // interval marker counter
 
-  if(hasRR){
-    // Add RR round 0
-    queue.push(...rrR0);
-
-    // Add fillers between RR rounds (non-RR first, then interval markers if needed)
-    const fillers=nonRR.splice(0, minFill);
-    queue.push(...fillers);
-    // If not enough real matches, fill with interval markers
-    const gap=minFill-fillers.length;
-    for(let i=0;i<gap;i++){
-      queue.push({id:'__interval__'+i,cat:'インターバル',age:0,
-        p1:'—',p2:'—',round:'インターバル',day:1,done:false,_interval:true});
-    }
-
-    // Add RR round 1
-    queue.push(...rrR1);
+  function makeInterval(label){
+    return {id:'__interval__'+(ivCount++),cat:label||'インターバル',age:0,
+      p1:'—',p2:'—',round:'インターバル',done:false,_interval:true};
   }
 
-  // Add remaining non-RR (or all non-RR if no RR)
-  queue.push(...nonRR);
-  if(!hasRR) queue.push(...rrR0); // RR-only without round 1 (shouldn't happen normally)
+  // ── DAY1: RR scheduling ──
+  const hasRR = rrR0.length>0&&rrR1.length>0;
+  if(hasRR){
+    queue.push(...rrR0);
+    // Need 2 slots of filler between RR round 0 and round 1
+    const minFill=2*courts;
+    const fillers=otherMatches.splice(0,minFill);
+    queue.push(...fillers);
+    const gap=minFill-fillers.length;
+    for(let i=0;i<gap;i++) queue.push(makeInterval());
+    queue.push(...rrR1);
+  } else if(rrR0.length>0){
+    queue.push(...rrR0);
+  }
 
-  // ── Assign queue to courts using cursor (fills every slot completely) ──
+  // Remaining day1 other matches
+  const day1Other=otherMatches.filter(m=>m.day===1);
+  const day2Other=otherMatches.filter(m=>m.day!==1);
+  queue.push(...day1Other);
+
+  // ── DAY2: SF → interval → Final ──
+  // Also include RR day2 matches (rrRound 2) which appear as round='リーグ' with day=2
+  // They were already passed in as part of matches and land in otherMatches if not caught above
+  // Actually rrRound 2 has round='リーグ' not 'リーグ' with rrRound 0/1, it goes to otherMatches
+  const rrDay2=matches.filter(m=>!m._interval&&m.round==='リーグ'&&m.rrRound===2);
+  if(rrDay2.length>0){
+    rrDay2.sort((a,b)=>b.age-a.age);
+    queue.push(...rrDay2);
+  }
+
+  if(sfMatches.length>0||finalMatches.length>0){
+    // Add SF matches
+    queue.push(...sfMatches);
+
+    if(sfMatches.length>0&&finalMatches.length>0){
+      // Need 2 match-slots between SF and Final
+      const sfFillNeeded=2*courts;
+      // Try to insert day2 other matches as filler
+      const sfFillers=day2Other.splice(0,sfFillNeeded);
+      queue.push(...sfFillers);
+      const sfGap=sfFillNeeded-sfFillers.length;
+      for(let i=0;i<sfGap;i++) queue.push(makeInterval('準決勝→決勝インターバル'));
+    }
+
+    // Add Final matches
+    queue.push(...finalMatches);
+  }
+
+  // Remaining day2 other matches
+  queue.push(...day2Other);
+
+  // ── Assign queue to courts using cursor ──
   const scheduled=[];
-  const cursor=Array(courts).fill(0); // cursor[court] = next slot for that court
+  const cursor=Array(courts).fill(0);
 
   queue.forEach(m=>{
-    // Find the court with the smallest slot (earliest availability)
-    let minSlot=Math.min(...cursor);
-    let court=cursor.indexOf(minSlot)+1;
+    const minSlot=Math.min(...cursor);
+    const court=cursor.indexOf(minSlot)+1;
     scheduled.push({court, slot:minSlot, match:m});
     cursor[court-1]++;
   });
