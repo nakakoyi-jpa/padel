@@ -1291,13 +1291,20 @@ function getCatMatches(cat){
     // Round Robin: show if any pair registered
     const pairs=(draw.pairs||[]).slice(0,3);
     if(!pairs.some(p=>p&&p.trim()))return [];
-    [[0,1],[0,2],[1,2]].forEach(([a,b],i)=>{
-      const key='rr'+i;
+    // RR internal scheduled order: rr0(round0), rr2(round1), rr1(round2)
+    // Day assignment: rounds 0,1 → day1 ; round 2 → day2
+    const RR_ORDER=[[0,1],[1,2],[0,2]]; // scheduled match order
+    const RR_KEYS=['rr0','rr2','rr1']; // corresponding keys
+    RR_ORDER.forEach(([a,b],rrRound)=>{
+      const key=RR_KEYS[rrRound];
+      const origI=parseInt(key.slice(2)); // 0,2,1 → pair combo index
+      const pairA=[0,1,0][origI], pairB=[1,2,2][origI];
       const w=draw.winners&&draw.winners[key];
       const sc=draw.scores&&draw.scores[key];
+      const day=rrRound<2?1:2; // rounds 0,1 → day1; round 2 → day2
       res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
-        p1:pairs[a]||'ペア'+(a+1),p2:pairs[b]||'ペア'+(b+1),
-        round:'リーグ',day:1,done:w!==undefined,score:sc});
+        p1:pairs[pairA]||'ペア'+(pairA+1),p2:pairs[pairB]||'ペア'+(pairB+1),
+        round:'リーグ',day,rrRound,done:w!==undefined,score:sc});
     });
     return res;
   }
@@ -1360,77 +1367,80 @@ function getCatMatches(cat){
 // Multiple RR cats are interleaved round-by-round across courts.
 // ───────────────────────────────────────────────────────
 function scheduleMatches(matches, courts){
-  // RR round order: [rr0=P0vsP1, rr2=P1vsP2, rr1=P0vsP2]
-  // Each pair rests for exactly one round slot.
-  const RR_ROUND_ORDER=[0,2,1];
-
-  const rrByCat={};
+  // ── Separate: RR day1 rounds 0/1, non-RR (tournament), RR day2 (rrRound 2 — handled by caller) ──
+  const rrR0=[]; // RR 1st match (day1)
+  const rrR1=[]; // RR 2nd match (day1)
   const nonRR=[];
 
   matches.forEach(m=>{
-    if(m.round==='リーグ'){
-      const catId=m.id.split('_rr')[0];
-      if(!rrByCat[catId])rrByCat[catId]={age:m.age,ms:[null,null,null]};
-      const rrIdx=parseInt(m.id[m.id.length-1]);
-      rrByCat[catId].ms[rrIdx]=m;
-    }else{
-      nonRR.push(m);
-    }
+    if(m.round==='リーグ'&&m.rrRound===0) rrR0.push(m);
+    else if(m.round==='リーグ'&&m.rrRound===1) rrR1.push(m);
+    else nonRR.push(m);
   });
 
-  const catIds=Object.keys(rrByCat).sort((a,b)=>rrByCat[b].age-rrByCat[a].age);
+  rrR0.sort((a,b)=>b.age-a.age);
+  rrR1.sort((a,b)=>b.age-a.age);
+  nonRR.sort((a,b)=>b.age-a.age);
+
+  // Strategy: interleave to give 2-match interval between RR rounds for each player.
+  // We place: [RR round 0] → [up to 2 slots of other matches] → [RR round 1] → [remaining other]
+  // If no other matches between rounds, show an INTERVAL marker row.
+
   const scheduled=[];
 
-  if(catIds.length>0){
-    // How many cats fit in day1 without overflow?
-    // Each round must complete in 1 "row" (= 1 slot if cats <= courts,
-    // or multiple slots if cats > courts).
-    // RULE: if a cat's match would overflow to a 2nd slot in any round while
-    // another cat is in slot 1 of that same round → the overflowing cat is
-    // moved entirely to day2 (to avoid splitting a cat's rest pattern).
-    // 
-    // Simpler approach: take the first `courts` cats as day1, rest → day2.
-    const day1CatIds = catIds.slice(0, courts);   // fit in 1 row per round
-    const day2CatIds = catIds.slice(courts);       // overflow → day2
+  // Split nonRR into "between RR rounds" (up to 2 slots worth) and "after RR"
+  const courtsPerSlot=courts;
+  const maxBetween=2*courtsPerSlot; // 2 slots × courts matches can fill the gap
+  const between=nonRR.splice(0,maxBetween);
+  // remaining nonRR stays in nonRR
 
-    // Build 3 rounds for day1 cats
-    const rounds=[[],[],[]];
-    day1CatIds.forEach(catId=>{
-      const ms=rrByCat[catId].ms;
-      RR_ROUND_ORDER.forEach((rrIdx,roundIdx)=>{
-        if(ms[rrIdx])rounds[roundIdx].push(ms[rrIdx]);
-      });
+  let slot=0;
+
+  // ── Fill matches into consecutive slots ──
+  function pack(list){
+    if(!list.length)return;
+    let court=1,s=slot;
+    list.forEach(m=>{
+      scheduled.push({court,slot:s,match:m});
+      court++;if(court>courts){court=1;s++;}
     });
+    slot=Math.max(...scheduled.map(e=>e.slot))+1;
+  }
 
-    let slotStart=0;
-    rounds.forEach(roundMatches=>{
-      if(!roundMatches.length)return;
-      let court=1, rowSlot=slotStart;
-      roundMatches.forEach(m=>{
-        scheduled.push({court,slot:rowSlot,match:m});
-        court++;if(court>courts){court=1;rowSlot++;}
-      });
-      slotStart=rowSlot+1;
-    });
+  // ── RR Round 0 ──
+  if(rrR0.length>0) pack(rrR0);
 
-    // Day2 overflow RR cats: add to nonRR list so they're placed after nonRR
-    day2CatIds.forEach(catId=>{
-      const ms=rrByCat[catId].ms;
-      // Keep same rest-friendly order even in day2
-      RR_ROUND_ORDER.forEach(rrIdx=>{
-        if(ms[rrIdx])nonRR.push({...ms[rrIdx],_rrDay2:true});
-      });
+  // ── Interval between RR rounds ──
+  if(between.length>0){
+    pack(between);
+  } else if(rrR0.length>0&&rrR1.length>0){
+    // No other matches — insert 2 interval marker rows
+    for(let ii=0;ii<2;ii++){
+      scheduled.push({court:1,slot:slot,match:{
+        id:'__interval__'+ii,cat:'⏱ インターバル',age:0,
+        p1:'—',p2:'—',round:'インターバル',day:1,done:false,_interval:true
+      }});
+      slot++;
+    }
+  }
+
+  // ── RR Round 1 ──
+  if(rrR1.length>0) pack(rrR1);
+
+  // ── Remaining non-RR matches ──
+  if(nonRR.length>0){
+    const cursor=Array(courts).fill(slot);
+    nonRR.forEach(m=>{
+      const c=cursor.indexOf(Math.min(...cursor));
+      scheduled.push({court:c+1,slot:cursor[c],match:m});
+      cursor[c]++;
     });
   }
 
-  // Schedule non-RR (tournament + overflow RR) matches
-  const slotOffset=scheduled.length>0?(Math.max(...scheduled.map(s=>s.slot))+1):0;
-  const cursor=Array(courts).fill(slotOffset);
-  nonRR.sort((a,b)=>b.age-a.age).forEach(m=>{
-    const c=cursor.indexOf(Math.min(...cursor));
-    scheduled.push({court:c+1,slot:cursor[c],match:m});
-    cursor[c]++;
-  });
+  // ── Re-number to be gapless ──
+  const slotNums=[...new Set(scheduled.map(s=>s.slot))].sort((a,b)=>a-b);
+  const slotMap={};slotNums.forEach((sn,i)=>slotMap[sn]=i);
+  scheduled.forEach(s=>s.slot=slotMap[s.slot]);
 
   return scheduled;
 }
@@ -1471,14 +1481,17 @@ function renderOOPTable(matches,containerId,courts){
 
   slots.forEach((sl,si)=>{
     const rule=getOOPTimeRule(si);
-    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'">'
-      +'<td style="padding:5px 8px;vertical-align:middle">'
-      +'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
-      +'<div class="oop-slot">第'+(si+1)+'試合</div>'
+    const isInterval=bySlot[sl]&&bySlot[sl][1]&&bySlot[sl][1]._interval;
+    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'"'+(isInterval?' style="background:#fff8e1"':'')+'>'      +'<td style="padding:5px 8px;vertical-align:middle">'
+      +(isInterval?'<div><span class="oop-time" style="background:#f0c000;color:#5a3e00;border-radius:12px;padding:3px 8px;font-size:10px;font-weight:700">⏱ インターバル</span></div>'
+        :'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
+        +'<div class="oop-slot">第'+(si+1)+'試合</div>')
       +'</td>';
     for(let c=1;c<=courts;c++){
       const m=bySlot[sl]&&bySlot[sl][c];
       if(!m){html+='<td><div class="ec">—</div></td>';continue;}
+      // Interval marker row
+      if(m._interval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td>';break;}
       const isF=m.round==='決勝',isSF=m.round==='準決勝';
       const scTxt=m.score?fmtScore(m.score):'';
       html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
