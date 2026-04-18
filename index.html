@@ -1367,79 +1367,77 @@ function getCatMatches(cat){
 // Multiple RR cats are interleaved round-by-round across courts.
 // ───────────────────────────────────────────────────────
 function scheduleMatches(matches, courts){
-  // ── Separate: RR day1 rounds 0/1, non-RR (tournament), RR day2 (rrRound 2 — handled by caller) ──
-  const rrR0=[]; // RR 1st match (day1)
-  const rrR1=[]; // RR 2nd match (day1)
-  const nonRR=[];
+  // ══ GOAL: pack all matches so every court is filled in every time slot (no gaps).
+  //
+  // RR rules:
+  //   rrRound 0 → 1st league match (day1)
+  //   rrRound 1 → 2nd league match (day1), must have ≥2 matches between it and rrRound 0
+  //   rrRound 2 → 3rd league match (day2, handled by renderOOP, not here)
+  //
+  // Algorithm:
+  //   Build an ordered queue of matches:
+  //     [rrR0 matches] → [filler matches (non-RR)] → [rrR1 matches] → [remaining non-RR]
+  //   The filler between rrR0 and rrR1 must be ≥2 time-slots worth (= 2×courts matches).
+  //   If not enough fillers, insert INTERVAL markers to ensure the gap.
+  //   Then assign the whole queue to courts using a cursor (round-robin),
+  //   which guarantees every slot is fully packed.
+  // ──────────────────────────────────────────────────────────────────────────────
 
+  const rrR0=[], rrR1=[], nonRR=[];
   matches.forEach(m=>{
+    if(m._interval) return; // skip stale interval markers
     if(m.round==='リーグ'&&m.rrRound===0) rrR0.push(m);
     else if(m.round==='リーグ'&&m.rrRound===1) rrR1.push(m);
     else nonRR.push(m);
   });
-
   rrR0.sort((a,b)=>b.age-a.age);
   rrR1.sort((a,b)=>b.age-a.age);
   nonRR.sort((a,b)=>b.age-a.age);
 
-  // Strategy: interleave to give 2-match interval between RR rounds for each player.
-  // We place: [RR round 0] → [up to 2 slots of other matches] → [RR round 1] → [remaining other]
-  // If no other matches between rounds, show an INTERVAL marker row.
+  const hasRR = rrR0.length>0&&rrR1.length>0;
+  const minFill = hasRR ? 2*courts : 0; // matches needed between RR round 0 and round 1
 
-  const scheduled=[];
+  // Build the ordered match queue
+  const queue=[];
 
-  // Split nonRR into "between RR rounds" (up to 2 slots worth) and "after RR"
-  const courtsPerSlot=courts;
-  const maxBetween=2*courtsPerSlot; // 2 slots × courts matches can fill the gap
-  const between=nonRR.splice(0,maxBetween);
-  // remaining nonRR stays in nonRR
+  if(hasRR){
+    // Add RR round 0
+    queue.push(...rrR0);
 
-  let slot=0;
-
-  // ── Fill matches into consecutive slots ──
-  function pack(list){
-    if(!list.length)return;
-    let court=1,s=slot;
-    list.forEach(m=>{
-      scheduled.push({court,slot:s,match:m});
-      court++;if(court>courts){court=1;s++;}
-    });
-    slot=Math.max(...scheduled.map(e=>e.slot))+1;
-  }
-
-  // ── RR Round 0 ──
-  if(rrR0.length>0) pack(rrR0);
-
-  // ── Interval between RR rounds ──
-  if(between.length>0){
-    pack(between);
-  } else if(rrR0.length>0&&rrR1.length>0){
-    // No other matches — insert 2 interval marker rows
-    for(let ii=0;ii<2;ii++){
-      scheduled.push({court:1,slot:slot,match:{
-        id:'__interval__'+ii,cat:'⏱ インターバル',age:0,
-        p1:'—',p2:'—',round:'インターバル',day:1,done:false,_interval:true
-      }});
-      slot++;
+    // Add fillers between RR rounds (non-RR first, then interval markers if needed)
+    const fillers=nonRR.splice(0, minFill);
+    queue.push(...fillers);
+    // If not enough real matches, fill with interval markers
+    const gap=minFill-fillers.length;
+    for(let i=0;i<gap;i++){
+      queue.push({id:'__interval__'+i,cat:'インターバル',age:0,
+        p1:'—',p2:'—',round:'インターバル',day:1,done:false,_interval:true});
     }
+
+    // Add RR round 1
+    queue.push(...rrR1);
   }
 
-  // ── RR Round 1 ──
-  if(rrR1.length>0) pack(rrR1);
+  // Add remaining non-RR (or all non-RR if no RR)
+  queue.push(...nonRR);
+  if(!hasRR) queue.push(...rrR0); // RR-only without round 1 (shouldn't happen normally)
 
-  // ── Remaining non-RR matches ──
-  if(nonRR.length>0){
-    const cursor=Array(courts).fill(slot);
-    nonRR.forEach(m=>{
-      const c=cursor.indexOf(Math.min(...cursor));
-      scheduled.push({court:c+1,slot:cursor[c],match:m});
-      cursor[c]++;
-    });
-  }
+  // ── Assign queue to courts using cursor (fills every slot completely) ──
+  const scheduled=[];
+  const cursor=Array(courts).fill(0); // cursor[court] = next slot for that court
 
-  // ── Re-number to be gapless ──
+  queue.forEach(m=>{
+    // Find the court with the smallest slot (earliest availability)
+    let minSlot=Math.min(...cursor);
+    let court=cursor.indexOf(minSlot)+1;
+    scheduled.push({court, slot:minSlot, match:m});
+    cursor[court-1]++;
+  });
+
+  // ── Re-number slots to be consecutive (gapless) ──
   const slotNums=[...new Set(scheduled.map(s=>s.slot))].sort((a,b)=>a-b);
-  const slotMap={};slotNums.forEach((sn,i)=>slotMap[sn]=i);
+  const slotMap={};
+  slotNums.forEach((sn,i)=>slotMap[sn]=i);
   scheduled.forEach(s=>s.slot=slotMap[s.slot]);
 
   return scheduled;
