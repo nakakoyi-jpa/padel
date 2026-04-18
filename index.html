@@ -407,11 +407,11 @@ body.public-only #pub-header { display:flex!important }
     <div id="pub-body" style="padding:12px"></div>
     <!-- OOP in public view -->
     <div id="pub-oop" style="padding:0 12px 12px">
-      <div class="day-hdr d1" style="margin-top:0">📅 1日目　オーダーオブプレイ</div>
+      <div class="day-hdr d1" id="pub-oop-d1-hdr" style="margin-top:0">📅 1日目　オーダーオブプレイ</div>
       <div class="card">
         <div class="cb" style="padding:0"><div class="oop-wrap" id="pub-oop-d1"></div></div>
       </div>
-      <div class="day-hdr d2">📅 2日目　オーダーオブプレイ</div>
+      <div class="day-hdr d2" id="pub-oop-d2-hdr">📅 2日目　オーダーオブプレイ</div>
       <div class="card">
         <div class="cb" style="padding:0"><div class="oop-wrap" id="pub-oop-d2"></div></div>
       </div>
@@ -1725,10 +1725,24 @@ function renderPublicOOP(){
   const day1=all.filter(m=>m.day===1).sort((a,b)=>b.age-a.age);
   const day2sf=all.filter(m=>m.day===2&&m.round!=='決勝').sort((a,b)=>b.age-a.age);
   const day2f=all.filter(m=>m.day===2&&m.round==='決勝').sort((a,b)=>b.age-a.age);
+
+  // Update day headers with dates
+  function fmtDJP(d){
+    if(!d)return '';
+    try{const dt=new Date(d+'T00:00:00');
+      return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';
+    }catch(e){return '';}
+  }
+  const dh1=document.getElementById('pub-oop-d1-hdr');
+  if(dh1)dh1.textContent='📅 1日目　オーダーオブプレイ'+fmtDJP(S.settings.d1);
+  const dh2=document.getElementById('pub-oop-d2-hdr');
+  if(dh2)dh2.textContent='📅 2日目　オーダーオブプレイ'+fmtDJP(S.settings.d2);
+
   const d1el=document.getElementById('pub-oop-d1');
   const d2el=document.getElementById('pub-oop-d2');
-  if(d1el)renderOOPInto(day1,d1el,courts);
-  if(d2el)renderOOPInto([...day2sf,...day2f],d2el,courts);
+  // Use full OOP table rendering (with time labels) instead of plain renderOOPInto
+  if(d1el)renderOOPTable(day1,'pub-oop-d1',courts);
+  if(d2el)renderOOPTable([...day2sf,...day2f],'pub-oop-d2',courts);
 }
 
 function renderOOPInto(matches, el, courts){
@@ -1776,6 +1790,10 @@ function applyPublicOnlyUI(){
   document.querySelectorAll('.scr').forEach(el=>el.classList.remove('active'));
   const ps=document.getElementById('scr-public');
   if(ps) ps.classList.add('active');
+  // Start polling for live updates if bin is available (even for snapshot URLs)
+  if(RT.binId&&!RT.pollTimer){
+    startPolling();
+  }
   // Render content
   renderPublic();
 }
@@ -1788,6 +1806,11 @@ let PUB_BIN_ID='';
 
 function buildPublicUrl(){
   const base=location.href.split('#')[0].split('?')[0];
+  // PRIORITY: if JSONBin RT sync is configured, use short bin URL (always live data)
+  if(RT&&RT.binId&&RT.apiKey){
+    return base+'?view=public&bin='+RT.binId;
+  }
+  // Fallback: Base64 snapshot (static, no auto-update)
   const slim={settings:S.settings,cats:S.cats,draws:{}};
   Object.entries(S.draws).forEach(([k,d])=>{
     slim.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners,scores:d.scores};
@@ -2022,15 +2045,20 @@ function startPolling(){
         _localPersist();
         updateHeader();
         // Re-render current screen
-        if(cur==='draws') renderDraws();
-        if(cur==='oop') renderOOP();
-        if(cur==='public') renderPublic();
-        if(cur==='settings') renderSettings();
+        if(document.body.classList.contains('public-only')){
+          // External viewer: always refresh public view
+          renderPublic();
+        } else {
+          if(cur==='draws') renderDraws();
+          if(cur==='oop') renderOOP();
+          if(cur==='public') renderPublic();
+          if(cur==='settings') renderSettings();
+        }
         setSyncTime();
       }
       setSyncDot('ok');
     }catch(e){setSyncDot('err');}
-  }, 30000);
+  }, 30000); // 30秒ごと自動更新
 }
 
 // ── Sync bar helpers ──
