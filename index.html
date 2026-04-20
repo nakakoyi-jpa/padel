@@ -1823,9 +1823,11 @@ function applyPublicOnlyUI(){
   document.querySelectorAll('.scr').forEach(el=>el.classList.remove('active'));
   const ps=document.getElementById('scr-public');
   if(ps) ps.classList.add('active');
-  // Start polling for live updates if bin is available (even for snapshot URLs)
-  if(RT.binId&&!RT.pollTimer){
-    startPolling();
+  // Start polling for live updates
+  if(GH.owner&&GH.repo){
+    startGHPolling(); // GitHub方式: 無制限・無料
+  } else if(RT.binId&&!RT.pollTimer){
+    startPolling(); // JSONBin fallback
   }
   // Render content
   renderPublic();
@@ -1839,7 +1841,11 @@ let PUB_BIN_ID='';
 
 function buildPublicUrl(){
   const base=location.href.split('#')[0].split('?')[0];
-  // PRIORITY: if JSONBin RT sync is configured, use short bin URL (always live data)
+  // GitHub方式: ?view=public のみ (データはGitHub rawから自動取得)
+  if(GH.owner&&GH.repo&&GH.token){
+    return base+'?view=public';
+  }
+  // JSONBin方式
   if(RT&&RT.binId&&RT.apiKey){
     return base+'?view=public&bin='+RT.binId;
   }
@@ -1953,6 +1959,15 @@ let RT={
   const publicOnly=params.get('view')==='public';
   const rtBin=params.get('bin');
   const rtKey=params.get('k');
+
+  // GitHub方式: ?view=public で開かれた場合、GitHubから最新データ取得
+  if(publicOnly&&GH.owner&&GH.repo&&!rtBin){
+    applyPublicOnlyUI(); // まず現在のローカルデータで表示
+    fetchFromGitHub().then(data=>{
+      if(data&&data.settings){S=data;_localPersist();updateHeader();renderPublic();}
+    }).catch(()=>{});
+    return;
+  }
 
   if(rtBin){
     // Opened via realtime share URL → poll from cloud
@@ -2109,6 +2124,65 @@ function setSyncTime(){
   const el=document.getElementById('sync-last');
   const now=new Date();
   el.textContent='最終: '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+}
+
+// ── GitHub setup UI ──
+function showGHSection(){
+  const active=document.getElementById('gh-active');
+  const inactive=document.getElementById('gh-inactive');
+  if(!active||!inactive)return;
+  if(GH.owner&&GH.repo&&GH.token){
+    inactive.style.display='none';active.style.display='block';
+    document.getElementById('gh-info').textContent=GH.owner+'/'+GH.repo;
+    document.getElementById('gh-pub-url').textContent=buildPublicUrl();
+  }else{
+    inactive.style.display='block';active.style.display='none';
+    if(GH.owner){const el=document.getElementById('gh-owner');if(el)el.value=GH.owner;}
+    if(GH.repo){const el=document.getElementById('gh-repo');if(el)el.value=GH.repo;}
+  }
+}
+async function saveGHSettings(btn){
+  const owner=(document.getElementById('gh-owner').value||'').trim();
+  const repo=(document.getElementById('gh-repo').value||'').trim();
+  const token=(document.getElementById('gh-token').value||'').trim();
+  const errEl=document.getElementById('gh-setup-err');
+  if(!owner||!repo||!token){errEl.textContent='すべて入力してください';errEl.style.display='block';return;}
+  const origTxt=btn.textContent;btn.textContent='確認中...';btn.disabled=true;errEl.style.display='none';
+  try{
+    const r=await fetch('https://api.github.com/repos/'+owner+'/'+repo,{headers:{'Authorization':'token '+token}});
+    if(!r.ok){errEl.textContent='エラー: リポジトリにアクセスできません ('+r.status+') — ユーザー名・リポジトリ名・トークンを確認してください';errEl.style.display='block';btn.textContent=origTxt;btn.disabled=false;return;}
+    GH.owner=owner;GH.repo=repo;GH.token=token;
+    saveGHConfig();
+    await initGitHubSHA();
+    await saveToGitHub(S);
+    showGHSection();
+    setSyncBar('ok','GitHub同期中（無制限・無料）');
+    btn.textContent=origTxt;btn.disabled=false;
+  }catch(e){errEl.textContent='接続エラー: '+e.message;errEl.style.display='block';btn.textContent=origTxt;btn.disabled=false;}
+}
+function clearGHSettings(){
+  if(!confirm('GitHub同期を解除しますか？'))return;
+  GH.owner='';GH.repo='';GH.token='';GH.sha='';
+  localStorage.removeItem('jpa_gh_v1');
+  if(GH.pollTimer){clearInterval(GH.pollTimer);GH.pollTimer=null;}
+  showGHSection();
+}
+function copyGHPubUrl(){
+  const url=buildPublicUrl();
+  navigator.clipboard.writeText(url).then(()=>{const btn=event.target;const o=btn.textContent;btn.textContent='✓ コピー！';setTimeout(()=>btn.textContent=o,2000);}).catch(()=>prompt('URLをコピーしてください:',url));
+  genGHQR();
+}
+function genGHQR(){
+  const qrArea=document.getElementById('gh-qr-area');if(!qrArea)return;
+  qrArea.style.display='block';
+  const canvas=document.getElementById('gh-qr-canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='white';ctx.fillRect(0,0,160,160);
+  const url=buildPublicUrl();
+  const img=new Image();img.crossOrigin='anonymous';
+  img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
+  img.onerror=()=>{ctx.fillStyle='#555';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('URLをQRサービスで生成してください',80,80);};
+  img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
 }
 
 // ── Realtime setup UI ──
@@ -2358,9 +2432,48 @@ function doImport(){
       <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
     </div>
 
-    <!-- ③ リアルタイム同期（要サーバー環境） -->
+    <!-- ③ GitHub自動同期（推奨・無料・無制限） -->
+    <div class="sh-section" style="border-color:#238636;background:#f0fff4">
+      <h4>③ GitHub自動同期 <span class="view-badge" style="background:#e6ffec;color:#1a7a4a;border:1px solid #a7d7a0">推奨・無料・無制限</span></h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px">スコア更新を自動でGitHubに保存。回覧者が何百人でも費用ゼロ。</p>
+      <div id="gh-inactive">
+        <div style="font-size:11px;margin-bottom:8px;line-height:1.7;background:white;padding:8px;border-radius:5px">
+          <strong>設定手順：</strong><br>
+          1. <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">GitHub Token生成</a>（Expiration: No expiration、Scope: repo にチェック）<br>
+          2. 下記に入力して「設定保存」
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+          <input id="gh-owner" type="text" placeholder="GitHubユーザー名 (例: koji)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
+          <input id="gh-repo"  type="text" placeholder="リポジトリ名 (例: padel)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
+          <input id="gh-token" type="password" placeholder="ghp_xxxx（Personal Access Token）" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
+        </div>
+        <button class="btn bg2 sm" onclick="saveGHSettings(this)" style="width:100%">GitHub同期を設定する</button>
+        <div id="gh-setup-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
+      </div>
+      <div id="gh-active" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="sync-dot ok"></span>
+          <span style="font-size:12px;color:var(--ok);font-weight:700">GitHub同期設定済み</span>
+          <button class="btn bd2 sm" onclick="clearGHSettings()" style="margin-left:auto">解除</button>
+        </div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">
+          リポジトリ: <strong id="gh-info"></strong><br>
+          <span style="font-size:10px">回覧者URL:</span><br>
+          <code id="gh-pub-url" style="font-size:9px;word-break:break-all;background:#f4f8ff;padding:3px 5px;border-radius:3px;display:block;margin-top:2px"></code>
+        </div>
+        <div class="sh-btns">
+          <button class="btn bp sm" onclick="copyGHPubUrl()">📋 URLコピー</button>
+          <button class="btn bs sm" onclick="genGHQR()">QR</button>
+        </div>
+        <div id="gh-qr-area" style="text-align:center;margin-top:8px;display:none">
+          <canvas id="gh-qr-canvas" width="160" height="160" style="border-radius:6px"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ JSONBin同期（回覧者少数向け） -->
     <div class="sh-section">
-      <h4>③ リアルタイム自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">サーバー環境が必要</span></h4>
+      <h4>④ JSONBin自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">回覧者少数向け</span></h4>
       <p style="font-size:11px;color:#666;margin-bottom:8px">
         JSONBin.io APIを使います。<br>
         ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
