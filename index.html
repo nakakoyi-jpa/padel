@@ -557,6 +557,40 @@ let SPONSORS=['','','','',''];
 function loadSponsors(){try{const d=localStorage.getItem('jpa_sponsors');if(d)SPONSORS=JSON.parse(d);}catch(e){}}
 function saveSponsorsLocal(){try{localStorage.setItem('jpa_sponsors',JSON.stringify(SPONSORS));}catch(e){}}
 loadSponsors();
+
+// ── GitHub API sync state (defined early so all functions can use GH) ──
+let GH={owner:'',repo:'',token:'',sha:'',pollTimer:null,lastHash:''};
+(function loadGHConfig(){try{const v=localStorage.getItem('jpa_gh_v1');if(v){const p=JSON.parse(v);GH.owner=p.o||'';GH.repo=p.r||'';GH.token=p.t||'';}}catch(e){}})();
+function saveGHConfig(){try{localStorage.setItem('jpa_gh_v1',JSON.stringify({o:GH.owner,r:GH.repo,t:GH.token}));}catch(e){}}
+function ghRawUrl(){return 'https://raw.githubusercontent.com/'+GH.owner+'/'+GH.repo+'/main/jpa-data.json';}
+function ghApiUrl(){return 'https://api.github.com/repos/'+GH.owner+'/'+GH.repo+'/contents/jpa-data.json';}
+async function saveToGitHub(data){
+  if(!GH.owner||!GH.repo||!GH.token)return;
+  try{
+    setSyncDot('syncing');
+    const d2={...data};delete d2.sponsors;
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(d2))));
+    const body={message:'スコア更新',content};if(GH.sha)body.sha=GH.sha;
+    const r=await fetch(ghApiUrl(),{method:'PUT',headers:{'Authorization':'token '+GH.token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok){const j=await r.json();GH.sha=(j.content&&j.content.sha)||GH.sha;setSyncDot('ok');const sm=document.getElementById('sync-msg');if(sm)sm.textContent='GitHub同期中（無制限・無料）';setSyncTime();}
+    else{setSyncDot('err');const j=await r.json().catch(()=>({}));const sm=document.getElementById('sync-msg');if(sm)sm.textContent='GitHub同期エラー: '+(j.message||r.status);}
+  }catch(e){setSyncDot('err');const sm=document.getElementById('sync-msg');if(sm)sm.textContent='GitHub接続エラー: '+e.message;}
+}
+async function fetchFromGitHub(){const r=await fetch(ghRawUrl()+'?t='+Date.now());if(!r.ok)throw new Error('GitHub fetch failed: '+r.status);return r.json();}
+async function initGitHubSHA(){if(!GH.owner||!GH.repo||!GH.token)return;try{const r=await fetch(ghApiUrl(),{headers:{'Authorization':'token '+GH.token}});if(r.ok){const j=await r.json();GH.sha=j.sha||'';}}catch(e){}}
+function startGHPolling(){
+  if(GH.pollTimer)clearInterval(GH.pollTimer);
+  GH.pollTimer=setInterval(async()=>{
+    try{
+      const data=await fetchFromGitHub();const h=JSON.stringify(data);
+      if(h!==GH.lastHash){GH.lastHash=h;S=data;_localPersist();updateHeader();
+        if(document.body.classList.contains('public-only')){renderPublic();}
+        else{if(cur==='draws')renderDraws();if(cur==='oop')renderOOP();if(cur==='public')renderPublic();}
+        setSyncTime();}
+      setSyncDot('ok');
+    }catch(e){setSyncDot('err');}
+  },60000);
+}
 DEFS.forEach(c=>{S.draws[c.id]=newDraw();});
 
 try{const d=localStorage.getItem('jpa_v5');if(d){const p=JSON.parse(d);if(p&&p.settings)S=p;}}catch(e){}
