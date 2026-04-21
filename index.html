@@ -199,7 +199,8 @@ body.public-only #pub-qr-bar,
 body.public-only .pdf-btn-bar { display:none!important }
 body.public-only #scr-settings,
 body.public-only #scr-draws,
-body.public-only #scr-oop { display:none!important }
+body.public-only #scr-oop,
+body.public-only #scr-rain { display:none!important }
 body.public-only #scr-public { display:block!important }
 #pub-header { display:none; align-items:center; justify-content:space-between;
   padding:12px 16px; background:linear-gradient(135deg,var(--bd) 0%,var(--bm) 100%); }
@@ -212,6 +213,28 @@ body.public-only #pub-header { display:flex!important }
 .sponsor-footer .sp-logo{height:44px;max-width:110px;object-fit:contain}
 .sponsor-footer .sp-placeholder{height:44px;min-width:80px;background:#f0f4fa;border:1px dashed #ccc;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;padding:0 8px}
 .pdf-btn-bar{display:flex;justify-content:flex-end;padding:8px 14px 0;gap:8px}
+/* Rain OOP */
+.rain-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.rain-tbl th{background:var(--bd);color:white;padding:8px 10px;text-align:center;font-size:11px;font-weight:700;white-space:nowrap}
+.rain-tbl td{border:1px solid var(--bb);padding:0;vertical-align:top}
+.rain-time{background:#f0f4fa;font-weight:700;font-size:12px;color:var(--bd);padding:8px 10px;text-align:center;white-space:nowrap;min-width:90px;border-right:2px solid var(--bb)}
+.rain-slot{padding:5px 6px;min-height:72px;position:relative;cursor:pointer;transition:background .12s}
+.rain-slot:hover{background:#f0f7ff}
+.rain-slot.drag-over{background:#d4e9ff;border:2px dashed var(--bm)}
+.rain-slot.has-match{background:#f8faff}
+.rain-slot.drag-src{opacity:.4}
+.rain-match-inner{border:1px solid var(--bb);border-radius:5px;padding:5px 7px;background:white;height:100%;box-sizing:border-box}
+.rain-slot input{border:none;background:transparent;font-size:11px;font-family:inherit;width:100%;outline:none;color:var(--tp);padding:1px 0}
+.rain-slot input::placeholder{color:#ccc}
+.rain-slot input.cat-inp{font-weight:700;color:var(--bd);font-size:11px;border-bottom:1px dashed #eee;margin-bottom:3px}
+.rain-slot input.p1-inp{color:var(--bm);font-weight:600}
+.rain-slot input.p2-inp{color:#c05000;font-weight:600}
+.rain-slot .del-btn{position:absolute;top:4px;right:4px;background:none;border:none;cursor:pointer;font-size:11px;color:#ccc;padding:0;line-height:1}
+.rain-slot .del-btn:hover{color:#dc3545}
+.rain-nb-row{background:#fff8e1}
+.rain-nb-lbl{font-size:10px;font-weight:700;color:#b07800;text-align:center;padding:3px 6px;white-space:nowrap;background:#fff8e1}
+.rain-int-row td{background:#f5f5f5}
+.rain-int-lbl{font-size:10px;color:#888;text-align:center;padding:6px;font-style:italic}
 
 @media print{
   body{background:white;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -285,6 +308,7 @@ body.public-only #pub-header { display:flex!important }
     <button class="nb active" onclick="nav('settings')">⚙ 設定</button>
     <button class="nb" onclick="nav('draws')">🎯 ドロー編集</button>
     <button class="nb" onclick="nav('oop')">📋 運営(OOP)</button>
+    <button class="nb" onclick="nav('rain')">🌧 雨天OOP</button>
     <button class="nb" onclick="nav('public')">👁 回覧用</button>
     <button class="nb" onclick="openShare()" style="background:rgba(255,255,255,.12);flex:0.8">🔗 共有</button>
   </div>
@@ -380,6 +404,32 @@ body.public-only #pub-header { display:flex!important }
     <div class="pdf-btn-bar">
       <button class="btn bs sm" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
     </div>
+  </div>
+
+  <!-- RAIN OOP -->
+  <div id="scr-rain" class="scr">
+    <div style="padding:10px 14px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <span style="font-size:14px;font-weight:700;color:var(--bd)">🌧 雨天用OOP</span>
+        <span style="font-size:11px;color:#888;margin-left:8px">コート2面・45分間隔・9:00〜21:00</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:11px;color:var(--bm);font-weight:600">日付:</label>
+        <input type="date" id="rain-d1-date" style="padding:4px 8px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit" oninput="renderRainOOP()">
+        <input type="date" id="rain-d2-date" style="padding:4px 8px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit" oninput="renderRainOOP()">
+        <button class="btn bg2 sm" onclick="rainImportFromDraw()" title="ドロー編集のデータから雨天OOPを自動生成します">📥 ドローから生成</button>
+        <button class="btn bs sm" onclick="rainResetDay()">🗑 今日リセット</button>
+        <button class="btn bd2 sm" onclick="rainResetAll()" style="background:#7b1c1c" title="1日目・2日目すべてクリア">🗑 全リセット</button>
+        <button class="btn bs sm" onclick="window.print()">🖨️ 印刷/PDF</button>
+      </div>
+    </div>
+    <!-- Day tabs -->
+    <div style="display:flex;border-bottom:2px solid var(--bb);margin:8px 14px 0;gap:2px">
+      <button id="rain-tab-1" class="rain-tab active" onclick="switchRainDay(1)" style="padding:7px 20px;border:none;border-bottom:3px solid var(--bm);background:var(--bl);color:var(--bm);font-weight:700;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit">📅 1日目</button>
+      <button id="rain-tab-2" class="rain-tab" onclick="switchRainDay(2)" style="padding:7px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#666;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit">📅 2日目</button>
+    </div>
+    <div id="rain-body" style="padding:12px 14px"></div>
+    <div id="rain-sponsor-footer" class="sponsor-footer" style="display:none"></div>
   </div>
 
   <!-- PUBLIC -->
@@ -607,11 +657,12 @@ function show(s){
   cur=s;
   document.querySelectorAll('.scr').forEach(el=>el.classList.remove('active'));
   document.getElementById('scr-'+s).classList.add('active');
-  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('active',['settings','draws','oop','public'][i]===s));
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('active',['settings','draws','oop','rain','public'][i]===s));
   document.getElementById('back-btn').style.display=(hist.length&&s!=='public')?'inline-block':'none';
   if(s==='settings')renderSettings();
   if(s==='draws')renderDraws();
   if(s==='oop')renderOOP();
+  if(s==='rain')renderRainOOP();
   if(s==='public')renderPublic();
 }
 
@@ -758,7 +809,7 @@ let curCat=null;
 // ── Sponsor footer renderer ──
 function renderSponsorFooters(){
   const sponsors=(SPONSORS||[]).filter(url=>url&&url.trim());
-  ['draws-sponsor-footer','oop-sponsor-footer'].forEach(id=>{
+  ['draws-sponsor-footer','oop-sponsor-footer','rain-sponsor-footer'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
     if(sponsors.length===0){
@@ -1950,6 +2001,308 @@ function updatePublicBinIfExists(){
     headers:{'Content-Type':'application/json',...(key?{'X-Master-Key':key}:{})},
     body:JSON.stringify(dataToSync)
   }).catch(()=>{});
+}
+
+
+// ══════════════════════════════════════
+//  雨天用OOP
+// ══════════════════════════════════════
+// Data structure: RAIN[day][slot][court] = {cat, p1, p2} | null
+let RAIN = {
+  1: {}, // day1: slot 0-15 → court 1,2
+  2: {}  // day2: slot 0-15 → court 1,2
+};
+let rainDay = 1; // current displayed day
+
+// Time slots: 9:00-21:00, 45-min intervals → 17 slots (9:00,9:45,...20:15,21:00)
+// 16 intervals means 16 match slots + final 21:00 marker
+function rainTimes(){
+  const times=[];
+  for(let m=9*60;m<=21*60;m+=45) times.push(m);
+  return times; // minutes since midnight
+}
+function rainFmt(mins){
+  const h=Math.floor(mins/60),m=mins%60;
+  return h+':'+(m<10?'0':'')+m;
+}
+function rainSlotKey(slot,court){return slot+'_'+court;}
+
+// Load/save rain data from localStorage
+function rainSave(){
+  try{localStorage.setItem('jpa_rain_v1',JSON.stringify(RAIN));}catch(e){}
+}
+function rainLoad(){
+  try{const v=localStorage.getItem('jpa_rain_v1');if(v)RAIN=JSON.parse(v);}catch(e){}
+}
+rainLoad();
+
+let rainDragSrc=null; // {day,slot,court}
+
+function switchRainDay(d){
+  rainDay=d;
+  document.getElementById('rain-tab-1').style.cssText=d===1?
+    'padding:7px 20px;border:none;border-bottom:3px solid var(--bm);background:var(--bl);color:var(--bm);font-weight:700;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit':
+    'padding:7px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#666;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit';
+  document.getElementById('rain-tab-2').style.cssText=d===2?
+    'padding:7px 20px;border:none;border-bottom:3px solid var(--bm);background:var(--bl);color:var(--bm);font-weight:700;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit':
+    'padding:7px 20px;border:none;border-bottom:3px solid transparent;background:transparent;color:#666;font-size:12px;cursor:pointer;border-radius:5px 5px 0 0;font-family:inherit';
+  renderRainOOP();
+}
+
+function rainResetDay(){
+  if(!confirm(rainDay+'日目のデータをリセットしますか？'))return;
+  RAIN[rainDay]={};rainSave();renderRainOOP();
+}
+function rainResetAll(){
+  if(!confirm('1日目・2日目すべてのデータをリセットしますか？'))return;
+  RAIN={1:{},2:{}};rainSave();renderRainOOP();
+}
+
+// ── ドロー編集から雨天OOPを自動生成 ──
+function rainImportFromDraw(){
+  const cats=S.cats.filter(c=>c.active);
+  if(!cats.length){alert('有効なカテゴリーがありません。ドロー編集で設定してください。');return;}
+
+  // 全試合を取得
+  const all=cats.flatMap(c=>getCatMatches(c))
+    .filter(m=>!m.isByeMatch&&m.p1!=='BYE'&&m.p2!=='BYE');
+  if(!all.length){alert('試合が登録されていません。ドロー編集でペアを入力してください。');return;}
+
+  // 通常OOPのday区分を流用：day1/day2に分離
+  const day1Matches=all.filter(m=>m.day===1).sort((a,b)=>b.age-a.age);
+  const day2Matches=all.filter(m=>m.day===2).sort((a,b)=>b.age-a.age);
+
+  // 総試合数・コート数で必要スロット数を計算
+  const COURTS=2;
+  const totalD1=day1Matches.length;
+  const totalD2=day2Matches.length;
+  const slotsD1=Math.ceil(totalD1/COURTS);
+  const slotsD2=Math.ceil(totalD2/COURTS);
+  const MAX_SLOTS=16; // 9:00-21:00で最大16スロット
+
+  // まんべんなく配分：1日目と2日目で均等に
+  // 試合が多すぎる場合は警告
+  if(slotsD1>MAX_SLOTS||slotsD2>MAX_SLOTS){
+    const total=slotsD1+slotsD2;
+    if(!confirm('試合数が多いためスロット上限を超える可能性があります。\n1日目: '+totalD1+'試合 / 2日目: '+totalD2+'試合\n続行しますか？'))return;
+  }else{
+    if(!confirm('ドロー編集データから雨天OOPを生成します。\n1日目: '+totalD1+'試合 / 2日目: '+totalD2+'試合\n既存データはリセットされます。続行しますか？'))return;
+  }
+
+  // RAIN データをリセット
+  RAIN={1:{},2:{}};
+
+  // ── 均等配分スケジューラー (2コート) ──
+  function assignToSlots(matches, dayNum){
+    // cursor方式: コートA=even slots, コートB=odd slots で詰める
+    let slotA=0, slotB=0;
+    matches.forEach((m,i)=>{
+      // 交互にコートAとBに割り当て（均等分散）
+      let slot,court;
+      if(slotA<=slotB){slot=slotA;court=1;slotA++;}
+      else{slot=slotB;court=2;slotB++;}
+      if(slot>=MAX_SLOTS)return; // 上限超えたらスキップ
+      if(!RAIN[dayNum])RAIN[dayNum]={};
+      RAIN[dayNum][slot+'_'+court]={
+        cat:m.cat||'',
+        p1:m.p1||'',
+        p2:m.p2||''
+      };
+    });
+  }
+
+  assignToSlots(day1Matches, 1);
+  assignToSlots(day2Matches, 2);
+
+  rainSave();
+
+  // タブを日付設定に合わせてday1から表示
+  rainDay=1;
+  switchRainDay(1);
+
+  // 日付が未設定なら設定から引き込む
+  const d1el=document.getElementById('rain-d1-date');
+  const d2el=document.getElementById('rain-d2-date');
+  if(d1el&&!d1el.value&&S.settings.d1)d1el.value=S.settings.d1;
+  if(d2el&&!d2el.value&&S.settings.d2)d2el.value=S.settings.d2;
+
+  // 完了メッセージ
+  const d1count=Object.keys(RAIN[1]).length;
+  const d2count=Object.keys(RAIN[2]).length;
+  setTimeout(()=>{
+    // Brief success feedback in the header area
+    const btn=document.querySelector('[onclick="rainImportFromDraw()"]');
+    if(btn){const orig=btn.textContent;btn.textContent='✓ 生成完了';btn.style.background='#1a7a4a';setTimeout(()=>{btn.textContent=orig;btn.style.background='';},2500);}
+  },100);
+}
+
+function getRainDate(day){
+  const el=document.getElementById('rain-d'+(day)+'-date');
+  return el?el.value:'';
+}
+
+// Time-label rules: same as main OOP
+// slot 0→9:00開始, 1→Follow by, 2→NB10:00, 3→FB, 4→NB12:00, 5→FB, 6→NB14:00, 7→FB...
+const RAIN_TIME_RULES=[
+  {cls:'t-start',lbl:'9:00 開始'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 10:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 12:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 14:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 16:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 18:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 19:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 20:00'},
+  {cls:'t-fb',lbl:'Follow by'},
+  {cls:'t-nb',lbl:'NB 21:00'},
+];
+function getRainRule(idx){return RAIN_TIME_RULES[Math.min(idx,RAIN_TIME_RULES.length-1)];}
+
+function renderRainOOP(){
+  const container=document.getElementById('rain-body');
+  if(!container)return;
+  const times=rainTimes();
+  const dateStr=getRainDate(rainDay);
+  function fmtD(d){if(!d)return '';try{const dt=new Date(d+'T00:00:00');return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}catch(e){return '';}}
+
+  let html='<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:var(--bm)">'+rainDay+'日目'+fmtD(dateStr)+'</div>';
+  html+='<div style="overflow-x:auto"><table class="rain-tbl"><thead><tr>'
+    +'<th style="min-width:90px">時間</th>'
+    +'<th>コートA</th>'
+    +'<th>コートB</th>'
+    +'</tr></thead><tbody>';
+
+  // Header time rule row
+  times.forEach((mins,si)=>{
+    const rule=getRainRule(si);
+    const isLast=si===times.length-1;
+    if(isLast){
+      html+='<tr><td class="rain-time">'+rainFmt(mins)+'<br><span style="font-size:9px;color:#aaa">終了</span></td>'
+        +'<td colspan="2" style="text-align:center;background:#f9f9f9;color:#bbb;font-size:11px;padding:10px">—</td></tr>';
+      return;
+    }
+    const endMins=times[si+1];
+    const slotLabel=rainFmt(mins)+'〜'+rainFmt(endMins);
+    const d=RAIN[rainDay]||{};
+    const m1=d[si+'_1']||null;
+    const m2=d[si+'_2']||null;
+
+    html+='<tr>';
+    // Time cell with rule label
+    html+='<td class="rain-time" style="vertical-align:middle">'
+      +'<div>'+rainFmt(mins)+'</div>'
+      +'<div style="font-size:9px;margin-top:2px"><span class="oop-time '+rule.cls+'" style="font-size:9px;padding:1px 5px">'+rule.lbl+'</span></div>'
+      +'<div style="font-size:9px;color:#aaa;margin-top:1px">〜'+rainFmt(endMins)+'</div>'
+      +'</td>';
+
+    // Court slots
+    [1,2].forEach(court=>{
+      const match=d[si+'_'+court]||null;
+      const slotId='rain-slot-'+si+'-'+court;
+      html+='<td><div class="rain-slot'+(match?' has-match':'')+'" id="'+slotId+'"'
+        +' draggable="true"'
+        +' ondragstart="rainDragStart(event,'+si+','+court+')"'
+        +' ondragover="rainDragOver(event,this)"'
+        +' ondragleave="rainDragLeave(this)"'
+        +' ondrop="rainDrop(event,'+si+','+court+')"'
+        +' ondragend="rainDragEnd()"'
+        +' onclick="rainSlotClick(event,'+si+','+court+')">'
+        +(match
+          ?'<div class="rain-match-inner">'
+            +'<button class="del-btn" onclick="rainDelete(event,'+si+','+court+')">✕</button>'
+            +'<input class="cat-inp" data-s="'+si+'" data-c="'+court+'" data-f="cat" value="'+esc(match.cat||'')+'" placeholder="カテゴリー" oninput="rainUpd(this)">'
+            +'<input class="p1-inp" data-s="'+si+'" data-c="'+court+'" data-f="p1" value="'+esc(match.p1||'')+'" placeholder="ペア1" oninput="rainUpd(this)">'
+            +'<div style="font-size:9px;color:#aaa;text-align:center;margin:1px 0">vs</div>'
+            +'<input class="p2-inp" data-s="'+si+'" data-c="'+court+'" data-f="p2" value="'+esc(match.p2||'')+'" placeholder="ペア2" oninput="rainUpd(this)">'
+            +'</div>'
+          :'<div style="text-align:center;padding:16px 4px;color:#ddd;font-size:11px">＋ タップで追加</div>')
+        +'</div></td>';
+    });
+
+    html+='</tr>';
+  });
+
+  html+='</tbody></table></div>';
+  html+='<p style="font-size:10px;color:#aaa;margin-top:8px">💡 セルをタップして試合を追加。ドラッグで入れ替え可能。</p>';
+  container.innerHTML=html;
+
+  // Update sponsor footer
+  renderSponsorFooters();
+}
+
+function rainSlotClick(e,slot,court){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON')return;
+  const d=RAIN[rainDay]||(RAIN[rainDay]={});
+  if(d[slot+'_'+court])return; // already has match
+  // Add empty match
+  d[slot+'_'+court]={cat:'',p1:'',p2:''};
+  rainSave();
+  renderRainOOP();
+  // Focus cat input
+  setTimeout(()=>{
+    const el=document.getElementById('rain-slot-'+slot+'-'+court);
+    if(el){const inp=el.querySelector('.cat-inp');if(inp)inp.focus();}
+  },50);
+}
+
+function rainUpd(inp){
+  const s=parseInt(inp.dataset.s),c2=parseInt(inp.dataset.c),f=inp.dataset.f;
+  rainUpdate(s,c2,f,inp.value);
+}
+function rainUpdate(slot,court,field,val){
+  const d=RAIN[rainDay]||(RAIN[rainDay]={});
+  if(!d[slot+'_'+court])d[slot+'_'+court]={cat:'',p1:'',p2:''};
+  d[slot+'_'+court][field]=val;
+  rainSave();
+}
+
+function rainDelete(e,slot,court){
+  e.stopPropagation();
+  const d=RAIN[rainDay]||{};
+  delete d[slot+'_'+court];
+  rainSave();
+  renderRainOOP();
+}
+
+// Drag & drop
+function rainDragStart(e,slot,court){
+  rainDragSrc={day:rainDay,slot,court};
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>{
+    const el=document.getElementById('rain-slot-'+slot+'-'+court);
+    if(el)el.classList.add('drag-src');
+  },0);
+}
+function rainDragOver(e,el){e.preventDefault();el.classList.add('drag-over');}
+function rainDragLeave(el){el.classList.remove('drag-over');}
+function rainDrop(e,slot,court){
+  e.preventDefault();
+  const el=document.getElementById('rain-slot-'+slot+'-'+court);
+  if(el)el.classList.remove('drag-over');
+  if(!rainDragSrc)return;
+  const src=rainDragSrc;
+  if(src.slot===slot&&src.court===court){rainDragEnd();return;}
+  const d=RAIN[rainDay]||(RAIN[rainDay]={});
+  const srcKey=src.slot+'_'+src.court;
+  const dstKey=slot+'_'+court;
+  const tmp=d[srcKey]||null;
+  if(d[dstKey])d[srcKey]=d[dstKey];
+  else delete d[srcKey];
+  if(tmp)d[dstKey]=tmp;
+  else delete d[dstKey];
+  rainSave();
+  rainDragSrc=null;
+  renderRainOOP();
+}
+function rainDragEnd(){
+  rainDragSrc=null;
+  document.querySelectorAll('.rain-slot').forEach(el=>el.classList.remove('drag-src','drag-over'));
 }
 
 // ══════════════════════════════════════
