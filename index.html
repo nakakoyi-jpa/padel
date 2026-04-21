@@ -2193,9 +2193,11 @@ function renderRainOOP(){
     const m1=d[si+'_1']||null;
     const m2=d[si+'_2']||null;
 
-    html+='<tr>';
+    // Check if this slot is an interval row
+    const isIvRow=(d[si+'_1']&&d[si+'_1']._interval)||(d[si+'_2']&&d[si+'_2']._interval);
+    html+='<tr'+(isIvRow?' style="background:#fffbee"':'')+'>'; 
     // Time cell with rule label
-    html+='<td class="rain-time" style="vertical-align:middle">'
+    html+='<td class="rain-time" style="vertical-align:middle;'+(isIvRow?'background:#fff8e1':'')+'">'
       +'<div>'+rainFmt(mins)+'</div>'
       +'<div style="font-size:9px;margin-top:2px"><span class="oop-time '+rule.cls+'" style="font-size:9px;padding:1px 5px">'+rule.lbl+'</span></div>'
       +'<div style="font-size:9px;color:#aaa;margin-top:1px">〜'+rainFmt(endMins)+'</div>'
