@@ -1938,9 +1938,9 @@ let PUB_BIN_ID='';
 
 function buildPublicUrl(){
   const base=location.href.split('#')[0].split('?')[0];
-  // GitHub方式: gh=owner/repo を付加 → 別デバイスの回覧者もGitHubから取得可能
+  // GitHub方式: gho/ghr を付加 → 別デバイスの回覧者もGitHubから取得可能
   if(GH.owner&&GH.repo&&GH.token){
-    return base+'?view=public&gh='+encodeURIComponent(GH.owner+'/'+GH.repo);
+    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
   }
   // JSONBin方式
   if(RT&&RT.binId&&RT.apiKey){
@@ -2361,12 +2361,10 @@ let RT={
   const rtBin=params.get('bin');
   const rtKey=params.get('k');
 
-  // gh=owner/repo パラメータ → 別デバイスの回覧者用にGH情報をセット
-  const ghParam=params.get('gh');
-  if(ghParam&&!GH.owner){
-    const parts=ghParam.split('/');
-    if(parts.length>=2){GH.owner=parts[0];GH.repo=parts[1];}
-  }
+  // gho/ghr パラメータ → 別デバイスの回覧者用にGH情報をセット
+  const ghoParam=params.get('gho');
+  const ghrParam=params.get('ghr');
+  if(ghoParam&&ghrParam&&!GH.owner){GH.owner=ghoParam;GH.repo=ghrParam;}
 
   // GitHub方式: ?view=public で開かれた場合、GitHubから最新データ取得
   if(publicOnly&&GH.owner&&GH.repo&&!rtBin){
@@ -2933,4 +2931,4 @@ function doImport(){
     <details style="margin-top:8px">
       <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
       <div style="padding:8px 0">
-        <textarea cla
+        <textarea class=
