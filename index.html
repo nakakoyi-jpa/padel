@@ -1426,16 +1426,25 @@ function getCatMatches(cat){
         // Later rounds: resolve from getSlot (winner propagation)
         const p1=getSlot(draw,ri,mi,0,sz);
         const p2=getSlot(draw,ri,mi,1,sz);
-        // Skip pure BYE matchups
+        // BYE vs BYE はスキップ（試合なし）
         if(p1==='BYE'&&p2==='BYE')continue;
-        if(p1==='BYE'||p2==='BYE')continue;
-        // SF and Final (day2): always show even if opponents not yet decided
-        // Earlier rounds (day1): only show when at least one opponent is known
+        // ★ 修正: SF・決勝（day=2）は BYE や null でも必ず Day2 OOP に掲載する
         const isSFOrFinal=(day===2);
-        if(!isSFOrFinal&&p1===null&&p2===null)continue;
-        res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
-          p1:p1||'未決定',p2:p2||'未決定',
-          round:rNames[ri],day,done:w!==undefined,score:sc});
+        if(isSFOrFinal){
+          // BYE / null → '未決定' に変換して常に Day2 OOP に表示
+          const dp1=(p1&&p1!=='BYE')?p1:'未決定';
+          const dp2=(p2&&p2!=='BYE')?p2:'未決定';
+          res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
+            p1:dp1,p2:dp2,
+            round:rNames[ri],day,done:w!==undefined,score:sc});
+        } else {
+          // Day1ラウンド: BYE または両者未決定はスキップ
+          if(p1==='BYE'||p2==='BYE')continue;
+          if(p1===null&&p2===null)continue;
+          res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
+            p1:p1||'未決定',p2:p2||'未決定',
+            round:rNames[ri],day,done:w!==undefined,score:sc});
+        }
       }
     }
   }
@@ -1507,7 +1516,9 @@ function scheduleMatches(matches, courts){
 
   // Remaining day1 other matches
   const day1Other=otherMatches.filter(m=>m.day===1);
-  const day2Other=otherMatches.filter(m=>m.day!==1);
+  // ★ 修正: rrDay2はotherMatchesにも残るため、重複登録を防ぐ
+  const _rrDay2Ids=new Set(otherMatches.filter(m=>m.round==='リーグ'&&m.rrRound===2).map(m=>m.id));
+  const day2Other=otherMatches.filter(m=>m.day!==1&&!_rrDay2Ids.has(m.id));
   queue.push(...day1Other);
 
   // ── DAY2: SF → interval → Final ──
@@ -1928,7 +1939,8 @@ function buildPublicUrl(){
   const base=location.href.split('#')[0].split('?')[0];
   // GitHub方式: ?view=public のみ (データはGitHub rawから自動取得)
   if(GH.owner&&GH.repo&&GH.token){
-    return base+'?view=public';
+    // ★ 修正: GitHubオーナー・リポジトリをURLに埋め込み、閲覧者も自動同期できるようにする
+    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
   }
   // JSONBin方式
   if(RT&&RT.binId&&RT.apiKey){
@@ -2348,6 +2360,14 @@ let RT={
   const publicOnly=params.get('view')==='public';
   const rtBin=params.get('bin');
   const rtKey=params.get('k');
+
+  // ★ 修正: URLパラメータからGitHubオーナー・リポジトリを読み込む（閲覧者用）
+  // 閲覧者のlocalStorageにはGH設定がないため、URLに埋め込まれたパラメータから復元する
+  const _ghoPrm=params.get('gho'),_ghrPrm=params.get('ghr');
+  if(_ghoPrm&&_ghrPrm&&!GH.owner&&!GH.repo){
+    GH.owner=decodeURIComponent(_ghoPrm);
+    GH.repo=decodeURIComponent(_ghrPrm);
+  }
 
   // GitHub方式: ?view=public で開かれた場合、GitHubから最新データ取得
   if(publicOnly&&GH.owner&&GH.repo&&!rtBin){
