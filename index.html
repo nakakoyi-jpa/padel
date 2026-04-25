@@ -1512,12 +1512,8 @@ function scheduleMatches(matches, courts){
   });
   queue.push(...day1Other);
 
-  // ── DAY2: 3組総当たりを第1・第3・第5試合に配置、他のDay2試合を第2・第4試合に組み込む ──
+  // ── DAY2: 3組総当たりを第1・第3・第5試合に配置、空きコートも他の試合で埋める ──
   function makeEmpty(){return {id:'__empty__'+(ivCount++),_empty:true,age:0,p1:'',p2:'',round:'',cat:'',done:false};}
-  function padToSlotBoundary(){
-    const r=queue.length%courts;
-    if(r>0)for(let i=0;i<courts-r;i++)queue.push(makeEmpty());
-  }
   // 他のDay2試合プール（その他→SF→決勝の順）
   const otherDay2Pool=[...day2Other,...sfMatches,...finalMatches];
   function takeSlot(){
@@ -1526,17 +1522,27 @@ function scheduleMatches(matches, courts){
     while(taken.length<courts)taken.push(makeEmpty());
     return taken;
   }
+  function fillToSlotBoundary(){
+    // RR試合後の空きコートをプールから埋める（足りなければ_emptyで補完）
+    const r=queue.length%courts;
+    if(r>0){
+      const needed=courts-r;
+      const taken=otherDay2Pool.splice(0,needed);
+      while(taken.length<needed)taken.push(makeEmpty());
+      queue.push(...taken);
+    }
+  }
   if(rrR0.length>0){
-    queue.push(...rrR0); padToSlotBoundary();    // 第1試合: 第1リーグ
+    queue.push(...rrR0); fillToSlotBoundary();   // 第1試合: 第1リーグ＋他
     queue.push(...takeSlot());                   // 第2試合: 他のDay2試合
     if(rrR1.length>0){
-      queue.push(...rrR1); padToSlotBoundary(); // 第3試合: 第2リーグ
-      queue.push(...takeSlot());                // 第4試合: 他のDay2試合
+      queue.push(...rrR1); fillToSlotBoundary(); // 第3試合: 第2リーグ＋他
+      queue.push(...takeSlot());                 // 第4試合: 他のDay2試合
       if(rrR2.length>0){
-        queue.push(...rrR2); padToSlotBoundary(); // 第5試合: 第3リーグ
+        queue.push(...rrR2); fillToSlotBoundary(); // 第5試合: 第3リーグ＋他
       }
     } else if(rrR2.length>0){
-      queue.push(...rrR2); padToSlotBoundary();
+      queue.push(...rrR2); fillToSlotBoundary();
     }
   } else {
     // RR試合なし: SF・決勝をそのまま配置
