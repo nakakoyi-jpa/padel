@@ -1504,35 +1504,46 @@ function scheduleMatches(matches, courts){
   // ── DAY1: トーナメント 1R/2R のみ（RRは全て２日目）──
   const day1Other=otherMatches.filter(m=>m.day===1);
   const day2Other=otherMatches.filter(m=>m.day!==1);
+  // 男子40+1Rを男子50+の前に配置するカスタムソート（それ以外は年齢降順を維持）
+  day1Other.sort((a,b)=>{
+    const ka=(a.age===40&&a.round==='1R')?-9999:-a.age;
+    const kb=(b.age===40&&b.round==='1R')?-9999:-b.age;
+    return ka-kb;
+  });
   queue.push(...day1Other);
 
-  // ── DAY2: RR + SF/Final（インターバル行なし・行境界パッドのみ）──
-  // _emptyマーカーで行末を揃え、各ラウンドを必ず新しい行から開始する
-  // （インターバル行は表示しない→試合のみバランスよく配置）
+  // ── DAY2: 3組総当たりを第1・第3・第5試合に配置、他のDay2試合を第2・第4試合に組み込む ──
   function makeEmpty(){return {id:'__empty__'+(ivCount++),_empty:true,age:0,p1:'',p2:'',round:'',cat:'',done:false};}
   function padToSlotBoundary(){
     const r=queue.length%courts;
     if(r>0)for(let i=0;i<courts-r;i++)queue.push(makeEmpty());
   }
+  // 他のDay2試合プール（その他→SF→決勝の順）
+  const otherDay2Pool=[...day2Other,...sfMatches,...finalMatches];
+  function takeSlot(){
+    // コート数分取り出してスロットを埋める（足りなければ_emptyで補完）
+    const taken=otherDay2Pool.splice(0,courts);
+    while(taken.length<courts)taken.push(makeEmpty());
+    return taken;
+  }
   if(rrR0.length>0){
-    queue.push(...rrR0);
+    queue.push(...rrR0); padToSlotBoundary();    // 第1試合: 第1リーグ
+    queue.push(...takeSlot());                   // 第2試合: 他のDay2試合
     if(rrR1.length>0){
-      padToSlotBoundary(); // 行末を揃えて次ラウンドを新行から開始
-      queue.push(...rrR1);
+      queue.push(...rrR1); padToSlotBoundary(); // 第3試合: 第2リーグ
+      queue.push(...takeSlot());                // 第4試合: 他のDay2試合
       if(rrR2.length>0){
-        padToSlotBoundary();
-        queue.push(...rrR2);
+        queue.push(...rrR2); padToSlotBoundary(); // 第5試合: 第3リーグ
       }
     } else if(rrR2.length>0){
-      queue.push(...rrR2);
+      queue.push(...rrR2); padToSlotBoundary();
     }
+  } else {
+    // RR試合なし: SF・決勝をそのまま配置
+    queue.push(...sfMatches,...finalMatches);
   }
-
-  // SF → 決勝（インターバル行なし・そのままOOPに配置）
-  queue.push(...sfMatches,...finalMatches);
-
-  // Remaining day2 other matches
-  queue.push(...day2Other);
+  // 残りのDay2試合（SF・決勝の余り）
+  queue.push(...otherDay2Pool);
 
   // ── Assign queue to courts using cursor ──
   const scheduled=[];
