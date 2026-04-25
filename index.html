@@ -1398,7 +1398,7 @@ function getCatMatches(cat){
       const pairA=[0,1,0][origI], pairB=[1,2,2][origI];
       const w=draw.winners&&draw.winners[key];
       const sc=draw.scores&&draw.scores[key];
-      const day=rrRound<2?1:2; // rounds 0,1 → day1; round 2 → day2
+      const day=2; // 3組総当たりは全試剁2日目
       res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
         p1:pairs[pairA]||'ペア'+(pairA+1),p2:pairs[pairB]||'ペア'+(pairB+1),
         round:'リーグ',day,rrRound,done:w!==undefined,score:sc});
@@ -1441,10 +1441,7 @@ function getCatMatches(cat){
         // Skip pure BYE matchups
         if(p1==='BYE'&&p2==='BYE')continue;
         if(p1==='BYE'||p2==='BYE')continue;
-        // SF and Final (day2): always show even if opponents not yet decided
-        // Earlier rounds (day1): only show when at least one opponent is known
-        const isSFOrFinal=(day===2);
-        if(!isSFOrFinal&&p1===null&&p2===null)continue;
+        // 全ラウンドの対戦カードを表示（未決定の場合も '未決定' で表示）
         res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
           p1:p1||'未決定',p2:p2||'未決定',
           round:rNames[ri],day,done:w!==undefined,score:sc});
@@ -1467,10 +1464,10 @@ function scheduleMatches(matches, courts){
   // ══ GOAL: pack all matches so every court is filled in every time slot (no gaps).
   //
   // Rules:
-  //   DAY1 – RR:
-  //     rrRound 0 → 1st league match
-  //     rrRound 1 → 2nd league match (≥2 match-slots gap from rrRound 0)
-  //   DAY2 – Tournament:
+  //   DAY1 – Tournament only (1R, 2R):
+  //     トーナメント形式のみ。RRは全て２日目。
+  //   DAY2 – RR + Tournament SF/Final:
+  //     rrRound 0 → 第1リーグ（インターバル）→ rrRound 1 → 第2リーグ（インターバル）→ rrRound 2
   //     SF (準決勝) first, then 2 match-slots interval, then Final (決勝)
   //     Each SF→interval→Final per category must be respected across all categories.
   //
@@ -1479,17 +1476,19 @@ function scheduleMatches(matches, courts){
   //   then assign to courts with cursor to fill every slot.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  const rrR0=[], rrR1=[], sfMatches=[], finalMatches=[], otherMatches=[];
+  const rrR0=[], rrR1=[], rrR2=[], sfMatches=[], finalMatches=[], otherMatches=[];
   matches.forEach(m=>{
     if(m._interval) return;
     if(m.round==='リーグ'&&m.rrRound===0)      rrR0.push(m);
     else if(m.round==='リーグ'&&m.rrRound===1)  rrR1.push(m);
+    else if(m.round==='リーグ'&&m.rrRound===2)  rrR2.push(m);
     else if(m.round==='準決勝')                  sfMatches.push(m);
     else if(m.round==='決勝')                    finalMatches.push(m);
     else                                          otherMatches.push(m);
   });
   rrR0.sort((a,b)=>b.age-a.age);
   rrR1.sort((a,b)=>b.age-a.age);
+  rrR2.sort((a,b)=>b.age-a.age);
   sfMatches.sort((a,b)=>b.age-a.age);
   finalMatches.sort((a,b)=>b.age-a.age);
   otherMatches.sort((a,b)=>b.age-a.age);
@@ -1502,34 +1501,33 @@ function scheduleMatches(matches, courts){
       p1:'—',p2:'—',round:'インターバル',done:false,_interval:true};
   }
 
-  // ── DAY1: RR scheduling ──
-  const hasRR = rrR0.length>0&&rrR1.length>0;
-  if(hasRR){
-    queue.push(...rrR0);
-    // Need 2 slots of filler between RR round 0 and round 1
-    const minFill=2*courts;
-    const fillers=otherMatches.splice(0,minFill);
-    queue.push(...fillers);
-    const gap=minFill-fillers.length;
-    for(let i=0;i<gap;i++) queue.push(makeInterval());
-    queue.push(...rrR1);
-  } else if(rrR0.length>0){
-    queue.push(...rrR0);
-  }
-
-  // Remaining day1 other matches
+  // ── DAY1: トーナメント 1R/2R のみ（RRは全て２日目）──
   const day1Other=otherMatches.filter(m=>m.day===1);
   const day2Other=otherMatches.filter(m=>m.day!==1);
   queue.push(...day1Other);
 
-  // ── DAY2: SF → interval → Final ──
-  // Also include RR day2 matches (rrRound 2) which appear as round='リーグ' with day=2
-  // They were already passed in as part of matches and land in otherMatches if not caught above
-  // Actually rrRound 2 has round='リーグ' not 'リーグ' with rrRound 0/1, it goes to otherMatches
-  const rrDay2=matches.filter(m=>!m._interval&&m.round==='リーグ'&&m.rrRound===2);
-  if(rrDay2.length>0){
-    rrDay2.sort((a,b)=>b.age-a.age);
-    queue.push(...rrDay2);
+  // ── DAY2: RR 第1→第2→第3試合（各ラウンド間インターバル）→ 準決勝 → インターバル → 決勝 ──
+  const minFill=2*courts;
+  if(rrR0.length>0){
+    queue.push(...rrR0);
+    if(rrR1.length>0){
+      // 第1リーグ → 第2リーグ インターバル
+      const fill1=day2Other.splice(0,minFill);
+      queue.push(...fill1);
+      const gap1=minFill-fill1.length;
+      for(let i=0;i<gap1;i++) queue.push(makeInterval('第1→第2リーグインターバル'));
+      queue.push(...rrR1);
+      if(rrR2.length>0){
+        // 第2リーグ → 第3リーグ インターバル
+        const fill2=day2Other.splice(0,minFill);
+        queue.push(...fill2);
+        const gap2=minFill-fill2.length;
+        for(let i=0;i<gap2;i++) queue.push(makeInterval('第2→第3リーグインターバル'));
+        queue.push(...rrR2);
+      }
+    } else if(rrR2.length>0){
+      queue.push(...rrR2);
+    }
   }
 
   if(sfMatches.length>0||finalMatches.length>0){
@@ -1710,7 +1708,7 @@ function renderOOP(){
 
   // Day1 → Day2 interval (when tournament has day2)
   if(day1AllDone&&hasDay2&&!sfDone){
-    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
+    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（リーグ・準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
   }
 
   // RR-only: all 3 matches done → 60-min warning before next round or prize ceremony
@@ -1730,7 +1728,7 @@ function renderOOP(){
   // Date labels in day headers
   function fmtDJ(d){if(!d)return '';try{const dt=new Date(d+'T00:00:00');return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}catch(e){return '';}}
   const dh1=document.querySelector('.day-hdr.d1');if(dh1)dh1.textContent='📅 1日目（1R・2R）'+fmtDJ(S.settings.d1);
-  const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（準決勝・決勝）'+fmtDJ(S.settings.d2);
+  const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（リーグ・準決勝・決勝）'+fmtDJ(S.settings.d2);
 
   renderOOPTable(day1,'oop-d1',courts);
   const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
