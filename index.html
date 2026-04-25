@@ -1939,15 +1939,15 @@ let PUB_BIN_ID='';
 
 function buildPublicUrl(){
   const base=location.href.split('#')[0].split('?')[0];
-  // GitHub方式: gho/ghr を付加 → 別デバイスの回覧者もGitHubから取得可能
-  if(GH.owner&&GH.repo&&GH.token){
-    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
-  }
-  // JSONBin方式
+  // JSONBin方式を優先（リアルタイム同期中の場合は常にJSONBin URLを返す）
   if(RT&&RT.binId&&RT.apiKey){
     return base+'?view=public&bin='+RT.binId;
   }
-  // Fallback: Base64 snapshot (static, no auto-update)
+  // GitHub方式: JSONBin未使用でGitHub設定がある場合
+  if(GH.owner&&GH.repo&&GH.token){
+    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
+  }
+    // Fallback: Base64 snapshot (static, no auto-update)
   const slim={settings:S.settings,cats:S.cats,draws:{}};
   Object.entries(S.draws).forEach(([k,d])=>{
     slim.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners,scores:d.scores};
