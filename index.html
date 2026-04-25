@@ -1507,22 +1507,14 @@ function scheduleMatches(matches, courts){
   queue.push(...day1Other);
 
   // ── DAY2: RR 第1→第2→第3試合（各ラウンド間インターバル）→ 準決勝 → インターバル → 決勝 ──
-  const minFill=2*courts;
+  function pushRRInterval(n,label){const partial=n%courts;const pad=partial>0?courts-partial:0;for(let i=0;i<pad+courts;i++)queue.push(makeInterval(label));}
   if(rrR0.length>0){
     queue.push(...rrR0);
     if(rrR1.length>0){
-      // 第1リーグ → 第2リーグ インターバル
-      const fill1=day2Other.splice(0,minFill);
-      queue.push(...fill1);
-      const gap1=minFill-fill1.length;
-      for(let i=0;i<gap1;i++) queue.push(makeInterval('第1→第2リーグインターバル'));
+      pushRRInterval(rrR0.length,'第1→第2リーグインターバル');
       queue.push(...rrR1);
       if(rrR2.length>0){
-        // 第2リーグ → 第3リーグ インターバル
-        const fill2=day2Other.splice(0,minFill);
-        queue.push(...fill2);
-        const gap2=minFill-fill2.length;
-        for(let i=0;i<gap2;i++) queue.push(makeInterval('第2→第3リーグインターバル'));
+        pushRRInterval(rrR1.length,'第2→第3リーグインターバル');
         queue.push(...rrR2);
       }
     } else if(rrR2.length>0){
@@ -1607,17 +1599,17 @@ function renderOOPTable(matches,containerId,courts){
 
   slots.forEach((sl,si)=>{
     const rule=getOOPTimeRule(si);
-    const isInterval=bySlot[sl]&&bySlot[sl][1]&&bySlot[sl][1]._interval;
+    const allCourts=Array.from({length:courts},(_,i)=>i+1);
+    const isInterval=allCourts.every(c2=>{const m2=bySlot[sl]&&bySlot[sl][c2];return !m2||m2._interval;});
     html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'"'+(isInterval?' style="background:#fff8e1"':'')+'>'      +'<td style="padding:5px 8px;vertical-align:middle">'
       +(isInterval?'<div><span class="oop-time" style="background:#f0c000;color:#5a3e00;border-radius:12px;padding:3px 8px;font-size:10px;font-weight:700">⏱ インターバル</span></div>'
         :'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
         +'<div class="oop-slot">第'+(si+1)+'試合</div>')
       +'</td>';
+    if(isInterval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td></tr>';return;}
     for(let c=1;c<=courts;c++){
       const m=bySlot[sl]&&bySlot[sl][c];
-      if(!m){html+='<td><div class="ec">—</div></td>';continue;}
-      // Interval marker row
-      if(m._interval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td>';break;}
+      if(!m||m._interval){html+='<td><div class="ec">—</div></td>';continue;}
       const isF=m.round==='決勝',isSF=m.round==='準決勝';
       const scTxt=m.score?fmtScore(m.score):'';
       html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
