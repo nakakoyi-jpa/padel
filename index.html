@@ -1506,15 +1506,21 @@ function scheduleMatches(matches, courts){
   const day2Other=otherMatches.filter(m=>m.day!==1);
   queue.push(...day1Other);
 
-  // ── DAY2: RR 第1→第2→第3試合（各ラウンド間インターバル）→ 準決勝 → インターバル → 決勝 ──
-  function pushRRInterval(n,label){const partial=n%courts;const pad=partial>0?courts-partial:0;for(let i=0;i<pad+courts;i++)queue.push(makeInterval(label));}
+  // ── DAY2: RR + SF/Final（インターバル行なし・行境界パッドのみ）──
+  // _emptyマーカーで行末を揃え、各ラウンドを必ず新しい行から開始する
+  // （インターバル行は表示しない→試合のみバランスよく配置）
+  function makeEmpty(){return {id:'__empty__'+(ivCount++),_empty:true,age:0,p1:'',p2:'',round:'',cat:'',done:false};}
+  function padToSlotBoundary(){
+    const r=queue.length%courts;
+    if(r>0)for(let i=0;i<courts-r;i++)queue.push(makeEmpty());
+  }
   if(rrR0.length>0){
     queue.push(...rrR0);
     if(rrR1.length>0){
-      pushRRInterval(rrR0.length,'第1→第2リーグインターバル');
+      padToSlotBoundary(); // 行末を揃えて次ラウンドを新行から開始
       queue.push(...rrR1);
       if(rrR2.length>0){
-        pushRRInterval(rrR1.length,'第2→第3リーグインターバル');
+        padToSlotBoundary();
         queue.push(...rrR2);
       }
     } else if(rrR2.length>0){
@@ -1522,23 +1528,8 @@ function scheduleMatches(matches, courts){
     }
   }
 
-  if(sfMatches.length>0||finalMatches.length>0){
-    // Add SF matches
-    queue.push(...sfMatches);
-
-    if(sfMatches.length>0&&finalMatches.length>0){
-      // Need 2 match-slots between SF and Final
-      const sfFillNeeded=2*courts;
-      // Try to insert day2 other matches as filler
-      const sfFillers=day2Other.splice(0,sfFillNeeded);
-      queue.push(...sfFillers);
-      const sfGap=sfFillNeeded-sfFillers.length;
-      for(let i=0;i<sfGap;i++) queue.push(makeInterval('準決勝→決勝インターバル'));
-    }
-
-    // Add Final matches
-    queue.push(...finalMatches);
-  }
+  // SF → 決勝（インターバル行なし・そのままOOPに配置）
+  queue.push(...sfMatches,...finalMatches);
 
   // Remaining day2 other matches
   queue.push(...day2Other);
@@ -1597,20 +1588,21 @@ function renderOOPTable(matches,containerId,courts){
   for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
   html+='</tr></thead><tbody>';
 
-  slots.forEach((sl,si)=>{
-    const rule=getOOPTimeRule(si);
-    const allCourts=Array.from({length:courts},(_,i)=>i+1);
-    const isInterval=allCourts.every(c2=>{const m2=bySlot[sl]&&bySlot[sl][c2];return !m2||m2._interval;});
-    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'"'+(isInterval?' style="background:#fff8e1"':'')+'>'      +'<td style="padding:5px 8px;vertical-align:middle">'
-      +(isInterval?'<div><span class="oop-time" style="background:#f0c000;color:#5a3e00;border-radius:12px;padding:3px 8px;font-size:10px;font-weight:700">⏱ インターバル</span></div>'
-        :'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
-        +'<div class="oop-slot">第'+(si+1)+'試合</div>')
+  // _emptyのみのスロットを除外（パッドアーティファクトを非表示）
+  const allCourtsArr=Array.from({length:courts},(_,i)=>i+1);
+  const visibleSlots=slots.filter(sl=>allCourtsArr.some(c=>{const m=bySlot[sl]&&bySlot[sl][c];return m&&!m._empty&&!m._interval;}));
+  let matchRowNum=0;
+  visibleSlots.forEach((sl,si)=>{
+    const rule=getOOPTimeRule(matchRowNum);
+    matchRowNum++;
+    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'">'
+      +'<td style="padding:5px 8px;vertical-align:middle">'
+      +'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
+      +'<div class="oop-slot">第'+matchRowNum+'試合</div>'
       +'</td>';
-    if(isInterval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td></tr>';return;}
-    if(isInterval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td></tr>';return;}
     for(let c=1;c<=courts;c++){
       const m=bySlot[sl]&&bySlot[sl][c];
-      if(!m||m._interval){html+='<td><div class="ec">—</div></td>';continue;}
+      if(!m||m._empty||m._interval){html+='<td><div class="ec">—</div></td>';continue;}
       const isF=m.round==='決勝',isSF=m.round==='準決勝';
       const scTxt=m.score?fmtScore(m.score):'';
       html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
