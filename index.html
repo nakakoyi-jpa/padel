@@ -334,6 +334,7 @@ body.public-only #pub-header { display:flex!important }
         <div class="fr"><label>1日目</label><input id="s-d1" type="date"></div>
         <div class="fr"><label>2日目</label><input id="s-d2" type="date"></div>
         <div class="fr"><label>コート数</label><input id="s-courts" type="number" min="1" max="20" value="4" style="max-width:80px"></div>
+        <div class="fr"><label>公開URLドメイン</label><input id="s-pub-base" type="text" placeholder="https://bright-sherbet-913dc8.netlify.app" style="max-width:340px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn bp" onclick="saveSettings()">保存する</button>
           <button class="btn bd2" onclick="resetAllData()" style="margin-left:auto">⚠️ 全データリセット</button>
@@ -599,7 +600,7 @@ const DEFS=[
 function newDraw(){return {pairs:[],scores:{},winners:{},drawSize:undefined};}
 
 let S={
-  settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4},
+  settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4,publicBase:''},
   cats:DEFS.map(c=>({...c,active:true})),
   draws:{}
 };
@@ -689,6 +690,7 @@ function renderSettings(){
   document.getElementById('s-d1').value=s.d1||'';
   document.getElementById('s-d2').value=s.d2||'';
   document.getElementById('s-courts').value=s.courts||4;
+  document.getElementById('s-pub-base').value=s.publicBase||'';
   renderSponsorInputs();
   renderCatGrid();
 }
@@ -756,6 +758,7 @@ function saveSettings(){
   S.settings.d1=document.getElementById('s-d1').value;
   S.settings.d2=document.getElementById('s-d2').value;
   S.settings.courts=parseInt(document.getElementById('s-courts').value)||4;
+  S.settings.publicBase=document.getElementById('s-pub-base').value.trim().replace(/\/$/,'');
   persist();updateHeader();
   const b=event.target;b.textContent='✓ 保存しました';setTimeout(()=>b.textContent='保存する',2000);
 }
@@ -1938,7 +1941,9 @@ let PUB_BIN_ID='';
 })();
 
 function buildPublicUrl(){
-  const base=location.href.split('#')[0].split('?')[0];
+  const base=(S.settings&&S.settings.publicBase)
+    ? S.settings.publicBase
+    : location.href.split('#')[0].split('?')[0];
   // JSONBin方式を優先（リアルタイム同期中の場合は常にJSONBin URLを返す）
   if(RT&&RT.binId&&RT.apiKey){
     return base+'?view=public&bin='+RT.binId;
