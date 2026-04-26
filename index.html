@@ -641,7 +641,7 @@ async function fetchFromGitHub(){
     const r=await fetch(ghApiUrl(),{headers:{'Authorization':'token '+GH.token},cache:'no-store'});
     if(!r.ok)throw new Error('GitHub API failed: '+r.status);
     const j=await r.json();
-    return JSON.parse(atob(j.content.replace(/\n/g,'')));
+    const _b=Uint8Array.from(atob(j.content.replace(/\n/g,'')),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder('utf-8').decode(_b));
   }
   // tokenなし（回覧者）→ raw URL（CDNキャッシュあり・最大5分遅延）
   const r=await fetch(ghRawUrl()+'?t='+Date.now(),{cache:'no-store'});
