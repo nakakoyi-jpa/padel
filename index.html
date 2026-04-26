@@ -310,8 +310,6 @@ body.public-only #pub-header { display:flex!important }
     <button class="nb" onclick="nav('draws')">🎯 ドロー編集</button>
     <button class="nb" onclick="nav('oop')">📋 運営(OOP)</button>
     <button class="nb" onclick="nav('rain')">🌧 雨天OOP</button>
-    <button class="nb" onclick="nav('public')">👁 回覧用</button>
-    <button class="nb" onclick="openShare()" style="background:rgba(255,255,255,.12);flex:0.8">🔗 共有</button>
   </div>
 </div>
 
@@ -334,10 +332,31 @@ body.public-only #pub-header { display:flex!important }
         <div class="fr"><label>1日目</label><input id="s-d1" type="date"></div>
         <div class="fr"><label>2日目</label><input id="s-d2" type="date"></div>
         <div class="fr"><label>コート数</label><input id="s-courts" type="number" min="1" max="20" value="4" style="max-width:80px"></div>
-        <div class="fr"><label>公開URLドメイン</label><input id="s-pub-base" type="text" placeholder="https://nakakoyi-jpa.github.io/padel" style="max-width:340px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn bp" onclick="saveSettings()">保存する</button>
           <button class="btn bd2" onclick="resetAllData()" style="margin-left:auto">⚠️ 全データリセット</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch">📡 GitHub同期設定（公開URL用）</div>
+      <div class="cb">
+        <div id="gh-inactive">
+          <p style="font-size:11px;color:#555;margin-bottom:10px">設定すると保存のたびに自動で公開URLに反映されます。<a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">GitHub Token生成</a>（Scope: repo）</p>
+          <div class="fr"><label>ユーザー名</label><input id="gh-owner" type="text" placeholder="nakakoyi-jpa"></div>
+          <div class="fr"><label>リポジトリ</label><input id="gh-repo" type="text" placeholder="padel"></div>
+          <div class="fr"><label>Token</label><input id="gh-token" type="password" placeholder="ghp_..."></div>
+          <div id="gh-setup-err" style="color:#dc3545;font-size:11px;display:none;margin-bottom:8px"></div>
+          <button class="btn bp sm" onclick="saveGHSettings(this)">GitHub同期を設定する</button>
+        </div>
+        <div id="gh-active" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="color:var(--ok);font-weight:700">● 同期中</span>
+            <span id="gh-info" style="font-size:12px;color:#555"></span>
+            <button class="btn bd2 sm" onclick="clearGHSettings()" style="margin-left:auto">解除</button>
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px">公開URL: <code id="gh-pub-url" style="font-size:10px;word-break:break-all"></code></div>
+          <button class="btn bs sm" onclick="copyGHPubUrl()">🔗 公開URLをコピー</button>
         </div>
       </div>
     </div>
@@ -443,19 +462,7 @@ body.public-only #pub-header { display:flex!important }
         <p id="pub-header-venue"></p>
       </div>
     </div>
-    <div id="pub-bar">
-      <span>📋 回覧用（閲覧専用）</span>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn bg2 sm" onclick="copyPublicUrl()" title="外部共有用URL（管理UIなし）をコピー">🔗 外部公開URLをコピー</button>
-        <button class="btn bs sm" onclick="showPublicQR()" title="QRコードを表示">QR</button>
-        <button class="btn bp sm" onclick="nav('draws')">編集画面に戻る</button>
-      </div>
-    </div>
-    <div id="pub-qr-bar" style="display:none;background:#f0f4fa;border-bottom:1px solid var(--bb);padding:10px;text-align:center">
-      <div style="font-size:11px;color:var(--bm);margin-bottom:6px">外部公開URL（このURLを選手・観客に配布）</div>
-      <div id="pub-url-txt" style="font-size:10px;font-family:monospace;word-break:break-all;color:#333;background:white;padding:6px 8px;border-radius:5px;border:1px solid var(--bb);margin-bottom:8px"></div>
-      <canvas id="pub-qr-canvas" width="160" height="160" style="display:block;margin:0 auto;border-radius:6px"></canvas>
-    </div>
+
     <div id="pub-body" style="padding:12px"></div>
     <!-- OOP in public view -->
     <div id="pub-oop" style="padding:0 12px 12px">
@@ -659,7 +666,7 @@ DEFS.forEach(c=>{S.draws[c.id]=newDraw();});
 
 try{const d=localStorage.getItem('jpa_v5');if(d){const p=JSON.parse(d);if(p&&p.settings)S=p;}}catch(e){}
 function _localPersist(){try{localStorage.setItem('jpa_v5',JSON.stringify(S));}catch(e){}}
-function persist(){_localPersist();if(RT&&RT.binId&&RT.apiKey&&RT.isAdmin){saveToBin(S);}}
+function persist(){_localPersist();saveToGitHub(S);}
 
 // ══════════════════════════════════════
 //  NAVIGATION
@@ -690,8 +697,8 @@ function renderSettings(){
   document.getElementById('s-d1').value=s.d1||'';
   document.getElementById('s-d2').value=s.d2||'';
   document.getElementById('s-courts').value=s.courts||4;
-  document.getElementById('s-pub-base').value=s.publicBase||'';
   renderSponsorInputs();
+  showGHSection();
   renderCatGrid();
 }
 function renderSponsorInputs(){
@@ -758,7 +765,6 @@ function saveSettings(){
   S.settings.d1=document.getElementById('s-d1').value;
   S.settings.d2=document.getElementById('s-d2').value;
   S.settings.courts=parseInt(document.getElementById('s-courts').value)||4;
-  S.settings.publicBase=document.getElementById('s-pub-base').value.trim().replace(/\/$/,'');
   persist();updateHeader();
   const b=event.target;b.textContent='✓ 保存しました';setTimeout(()=>b.textContent='保存する',2000);
 }
@@ -1945,35 +1951,9 @@ let PUB_BIN_ID='';
 })();
 
 function buildPublicUrl(){
-  const base=(S.settings&&S.settings.publicBase)
-    ? S.settings.publicBase
-    : location.href.split('#')[0].split('?')[0];
-  // JSONBin方式を優先（リアルタイム同期中の場合は常にJSONBin URLを返す）
-  if(RT&&RT.binId&&RT.apiKey){
-    return base+'?view=public&bin='+RT.binId;
-  }
-  // GitHub方式: JSONBin未使用でGitHub設定がある場合
-  if(GH.owner&&GH.repo&&GH.token){
-    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
-  }
-    // Fallback: Base64 snapshot (static, no auto-update)
-  const slim={settings:S.settings,cats:S.cats,draws:{}};
-  Object.entries(S.draws).forEach(([k,d])=>{
-    slim.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners,scores:d.scores};
-  });
-  try{
-    const encoded=btoa(encodeURIComponent(JSON.stringify(slim)));
-    const full=base+'?view=public#d='+encoded;
-    if(full.length<=300)return full;
-    const slimmer={settings:S.settings,cats:S.cats,draws:{}};
-    Object.entries(S.draws).forEach(([k,d])=>{
-      slimmer.draws[k]={drawSize:d.drawSize,pairs:d.pairs,winners:d.winners};
-    });
-    const enc2=btoa(encodeURIComponent(JSON.stringify(slimmer)));
-    const url2=base+'?view=public#d='+enc2;
-    if(url2.length<=300)return url2;
-    return base+'?view=public';
-  }catch(e){return base+'?view=public';}
+  const base=(S.settings&&S.settings.publicBase)||location.href.split('#')[0].split('?')[0];
+  if(GH.owner&&GH.repo) return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
+  return base+'?view=public';
 }
 
 async function copyPublicUrl(){
@@ -1988,56 +1968,6 @@ async function copyPublicUrl(){
   showPublicQRWithUrl(url);
 }
 
-function showPublicQR(){
-  showPublicQRWithUrl(buildPublicUrl());
-}
-function showPublicQRWithUrl(url){
-  const bar=document.getElementById('pub-qr-bar');
-  const urlTxt=document.getElementById('pub-url-txt');
-  const canvas=document.getElementById('pub-qr-canvas');
-  urlTxt.textContent=url;
-  bar.style.display='block';
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
-  ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.textAlign='center';
-  ctx.fillText('QRコード生成中...',80,80);
-  const img=new Image();img.crossOrigin='anonymous';
-  img.onload=()=>{ctx.clearRect(0,0,160,160);ctx.drawImage(img,0,0,160,160);};
-  img.onerror=()=>{
-    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,160,160);
-    ctx.fillStyle='#185FA5';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
-    ctx.fillText('上のURLを',80,65);ctx.fillText('QRサービスで生成してください',80,82);
-  };
-  img.src='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(url);
-}
-
-// Update public bin whenever data changes (if bin exists)
-function updatePublicBinIfExists(){
-  if(!PUB_BIN_ID&&!(RT.binId&&RT.apiKey))return;
-  const targetBin=RT.binId&&RT.apiKey?RT.binId:PUB_BIN_ID;
-  const key=RT.apiKey||'';
-  if(!targetBin)return;
-  const dataToSync={...S};delete dataToSync.sponsors;
-  fetch('https://api.jsonbin.io/v3/b/'+targetBin,{
-    method:'PUT',
-    headers:{'Content-Type':'application/json',...(key?{'X-Master-Key':key}:{})},
-    body:JSON.stringify(dataToSync)
-  }).catch(()=>{});
-}
-
-
-// ══════════════════════════════════════
-//  雨天用OOP
-// ══════════════════════════════════════
-// Data structure: RAIN[day][slot][court] = {cat, p1, p2} | null
-let RAIN = {
-  1: {}, // day1: slot 0-15 → court 1,2
-  2: {}  // day2: slot 0-15 → court 1,2
-};
-let rainDay = 1; // current displayed day
-
-// Time slots: 9:00-21:00, 45-min intervals → 17 slots (9:00,9:45,...20:15,21:00)
-// 16 intervals means 16 match slots + final 21:00 marker
 function rainTimes(){
   const times=[];
   for(let m=9*60;m<=21*60;m+=45) times.push(m);
@@ -2349,15 +2279,6 @@ renderSettings();
 //  SHARE & REALTIME SYNC
 // ══════════════════════════════════════
 
-// ── Realtime sync state ──
-let RT={
-  apiKey: '',   // JSONBin secret key
-  binId: '',    // created bin ID
-  isAdmin: false,
-  pollTimer: null,
-  lastHash: ''
-};
-
 // ── Startup: load RT config from localStorage & detect URL params ──
 (function initShare(){
   // Load saved RT config
@@ -2426,105 +2347,8 @@ let RT={
   }
 })();
 
-// ── JSONBin API helpers ──
-const JBIN='https://api.jsonbin.io/v3';
-
-async function fetchFromBin(binId, apiKey){
-  const headers={'Content-Type':'application/json'};
-  if(apiKey) headers['X-Master-Key']=apiKey;
-  // Public bins can be read without auth key
-  const r=await fetch(JBIN+'/b/'+binId+'/latest',{headers});
-  if(!r.ok){
-    let detail='';
-    try{const j=await r.json();detail=j.message||'';}catch(e){}
-    throw new Error('HTTP '+r.status+(detail?' — '+detail:''));
-  }
-  const j=await r.json();
-  if(!j.record) throw new Error('レスポンスにrecordがありません');
-  return j.record;
-}
-
-async function saveToBin(data){
-  if(!RT.binId||!RT.apiKey) return;
-  try{
-    setSyncDot('syncing');
-    // Strip sponsors (base64 images) — too large for JSONBin free plan (100KB limit)
-    const dataToSync={...data};
-    delete dataToSync.sponsors;
-    const r=await fetch(JBIN+'/b/'+RT.binId,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json','X-Master-Key':RT.apiKey},
-      body:JSON.stringify(dataToSync)
-    });
-    if(r.ok){
-      setSyncDot('ok');setSyncTime();
-      document.getElementById('sync-msg').textContent='リアルタイム同期中';
-    }else{
-      let detail='';
-      try{const j=await r.json();detail=j.message||'';}catch(e){}
-      setSyncDot('err');
-      document.getElementById('sync-msg').textContent='同期エラー: HTTP '+r.status+(detail?' — '+detail:'');
-    }
-  }catch(e){
-    setSyncDot('err');
-    document.getElementById('sync-msg').textContent='通信エラー: '+e.message;
-  }
-}
-
-async function createBin(data, apiKey){
-  // Strip sponsors before creating bin (base64 images exceed 100KB free limit)
-  const dataToSync={...data};
-  delete dataToSync.sponsors;
-  const r=await fetch(JBIN+'/b',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'X-Master-Key':apiKey,
-      'X-Bin-Name':'JPA-Padel'
-    },
-    body:JSON.stringify(dataToSync)
-  });
-  if(!r.ok){
-    let detail='';
-    try{const j=await r.json();detail=j.message||JSON.stringify(j);}catch(e){}
-    throw new Error('HTTP '+r.status+(detail?' — '+detail:''));
-  }
-  const j=await r.json();
-  if(!j.metadata||!j.metadata.id) throw new Error('BIN IDが取得できませんでした: '+JSON.stringify(j));
-  return j.metadata.id;
-}
-
-// persist() is already RT-aware (defined near top, calls _localPersist + saveToBin)
 
 // ── Polling (viewer side) ──
-function startPolling(){
-  if(RT.pollTimer) clearInterval(RT.pollTimer);
-  RT.pollTimer=setInterval(async ()=>{
-    try{
-      const data=await fetchFromBin(RT.binId, RT.apiKey);
-      const h=JSON.stringify(data);
-      if(h!==RT.lastHash){
-        RT.lastHash=h;
-        S=data;
-        _localPersist();
-        updateHeader();
-        // Re-render current screen
-        if(document.body.classList.contains('public-only')){
-          // External viewer: always refresh public view
-          renderPublic();
-        } else {
-          if(cur==='draws') renderDraws();
-          if(cur==='oop') renderOOP();
-          if(cur==='public') renderPublic();
-          if(cur==='settings') renderSettings();
-        }
-        setSyncTime();
-      }
-      setSyncDot('ok');
-    }catch(e){setSyncDot('err');}
-  }, 30000); // 30秒ごと自動更新
-}
-
 // ── Sync bar helpers ──
 function setSyncBar(state, msg){
   const bar=document.getElementById('sync-bar');
@@ -2602,175 +2426,10 @@ function genGHQR(){
 }
 
 // ── Realtime setup UI ──
-function showRtSetup(){
-  document.getElementById('rt-prompt').style.display='none';
-  document.getElementById('rt-setup').style.display='block';
-  // Pre-fill if exists
-  if(RT.apiKey) document.getElementById('rt-apikey').value=RT.apiKey;
-  if(RT.binId){
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='block';
-    document.getElementById('rt-prompt').style.display='none';
-    updateRtUrls();
-  }
-}
-
-async function startRealtimeSync(btn){
-  const keyEl=document.getElementById('rt-apikey');
-  const errEl=document.getElementById('rt-setup-err');
-  const key=keyEl.value.trim();
-  if(!key){ errEl.textContent='APIキーを入力してください'; errEl.style.display='block'; return; }
-  errEl.style.display='none';
-  const origTxt=btn.textContent; btn.textContent='作成中...'; btn.disabled=true;
-  try{
-    const binId=await createBin(S, key);
-    RT.apiKey=key; RT.binId=binId; RT.isAdmin=true;
-    localStorage.setItem('jpa_rt_v1',JSON.stringify({k:key,b:binId}));
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='block';
-    document.getElementById('rt-prompt').style.display='none';
-    document.getElementById('rt-bin-id').textContent='BIN: '+binId;
-    setSyncBar('ok','リアルタイム同期中');
-    startPolling();
-    updateRtUrls();
-    document.getElementById('rt-status-badge').textContent='同期中';
-    document.getElementById('rt-status-badge').style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';
-  }catch(e){
-    errEl.textContent='エラー詳細: '+e.message;
-    errEl.style.display='block';
-  }
-  btn.textContent='同期開始'; btn.disabled=false;
-}
-
-function stopRealtimeSync(){
-  if(!confirm('リアルタイム同期を停止しますか？')) return;
-  if(RT.pollTimer) clearInterval(RT.pollTimer);
-  RT.binId=''; RT.isAdmin=false;
-  localStorage.removeItem('jpa_rt_v1');
-  document.getElementById('sync-bar').classList.remove('active');
-  document.getElementById('rt-active').style.display='none';
-  document.getElementById('rt-prompt').style.display='block';
-  document.getElementById('rt-status-badge').textContent='未設定';
-  document.getElementById('rt-status-badge').style.cssText='';
-}
-
-function updateRtUrls(){
-  const base=location.href.split('#')[0].split('?')[0];
-  const adminUrl=base+'?bin='+RT.binId+'&k='+encodeURIComponent(RT.apiKey);
-  const pubUrl=base+'?view=public&bin='+RT.binId;
-  const el1=document.getElementById('url-rt-admin');
-  const el2=document.getElementById('url-rt-public');
-  if(el1) el1.value=adminUrl;
-  if(el2) el2.value=pubUrl;
-}
-
 // ── Snapshot URL ──
-function buildShareUrl(publicOnly){
-  try{
-    const json=JSON.stringify(S);
-    const encoded=btoa(encodeURIComponent(json));
-    const base=location.href.split('#')[0].split('?')[0];
-    return publicOnly ? base+'?view=public#d='+encoded : base+'#d='+encoded;
-  }catch(e){return location.href;}
-}
-
 // ── Share modal open/close ──
-function openShare(){
-  // Snapshot URLs（要素が存在する場合のみ設定）
-  const elFull=document.getElementById('url-full');
-  const elPub=document.getElementById('url-public');
-  if(elFull)elFull.value=buildShareUrl(false);
-  if(elPub)elPub.value=buildShareUrl(true);
-  const qrArea=document.getElementById('qr-area');
-  if(qrArea)qrArea.style.display='none';
-  // Show correct RT state
-  const rtPrompt=document.getElementById('rt-prompt');
-  const rtSetup=document.getElementById('rt-setup');
-  const rtActive=document.getElementById('rt-active');
-  if(RT.binId && RT.isAdmin){
-    if(rtPrompt)rtPrompt.style.display='none';
-    if(rtSetup)rtSetup.style.display='none';
-    if(rtActive)rtActive.style.display='block';
-    const binId=document.getElementById('rt-bin-id');
-    const badge=document.getElementById('rt-status-badge');
-    if(binId)binId.textContent='BIN: '+RT.binId;
-    if(badge){badge.textContent='同期中';badge.style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';}
-    updateRtUrls();
-  } else {
-    if(rtPrompt)rtPrompt.style.display='block';
-    if(rtSetup)rtSetup.style.display='none';
-    if(rtActive)rtActive.style.display='none';
-  }
-  // GitHub同期状態を表示
-  const ghInactive=document.getElementById('gh-inactive');
-  const ghActive=document.getElementById('gh-active');
-  if(ghInactive&&ghActive){
-    if(GH.owner&&GH.repo){
-      ghInactive.style.display='none';ghActive.style.display='block';
-      const ownerEl=document.getElementById('gh-owner-disp');
-      if(ownerEl)ownerEl.textContent=GH.owner+'/'+GH.repo;
-    }else{
-      ghInactive.style.display='block';ghActive.style.display='none';
-      const ownerEl=document.getElementById('gh-owner');
-      if(GH.owner&&ownerEl)ownerEl.value=GH.owner;
-      const repoEl=document.getElementById('gh-repo');
-      if(GH.repo&&repoEl)repoEl.value=GH.repo;
-    }
-  }
-  document.getElementById('share-mo').classList.add('open');
-}
-function closeShare(){document.getElementById('share-mo').classList.remove('open');}
-
 // ── Copy URL ──
-function copyUrl(id){
-  const el=document.getElementById(id);
-  if(!el)return;
-  el.select();
-  try{
-    document.execCommand('copy');
-    const btn=event.target; const orig=btn.textContent;
-    btn.textContent='✓ コピーしました!';
-    setTimeout(()=>btn.textContent=orig,2000);
-  }catch(e){
-    navigator.clipboard&&navigator.clipboard.writeText(el.value);
-  }
-}
-
 // ── QR code ──
-function genQR(urlId){
-  const el=document.getElementById(urlId);
-  if(!el||!el.value)return;
-  const url=el.value;
-  const area=document.getElementById('qr-area');
-  const canvas=document.getElementById('qr-canvas');
-  const label=document.getElementById('qr-label');
-  area.style.display='block';
-  const isPublic=urlId.includes('public');
-  label.textContent=isPublic?'👁 回覧用QRコード':'⚙ 管理画面QRコード';
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,180,180);
-  ctx.fillStyle='#555';ctx.font='11px sans-serif';ctx.textAlign='center';
-  ctx.fillText('QRコード読み込み中...',90,90);
-  const img=new Image();
-  img.crossOrigin='anonymous';
-  img.onload=()=>{ctx.clearRect(0,0,180,180);ctx.drawImage(img,0,0,180,180);};
-  img.onerror=()=>{
-    ctx.fillStyle='#f4f8ff';ctx.fillRect(0,0,180,180);
-    ctx.fillStyle='#185FA5';ctx.font='bold 12px sans-serif';
-    ctx.fillText('QR生成にはオンライン環境が',90,70);
-    ctx.fillText('必要です。',90,88);
-    ctx.fillStyle='#555';ctx.font='10px sans-serif';
-    ctx.fillText('URLをコピーして',90,115);
-    ctx.fillStyle='#185FA5';
-    ctx.fillText('qr.quel.jp などで生成してください',90,132);
-  };
-  img.src='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(url);
-}
-
-
-// ══════════════════════════════════════
-//  EXPORT / IMPORT (コピペ共有)
-// ══════════════════════════════════════
 function doExport(){
   const area = document.getElementById('export-area');
   const txt  = document.getElementById('export-txt');
@@ -2822,149 +2481,5 @@ function doImport(){
 }
 
 </script>
-
-<!-- SHARE MODAL -->
-<div id="share-mo" onclick="if(event.target===this)closeShare()">
-  <div id="share-box">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <h3 style="margin:0">🔗 共有</h3>
-      <button onclick="closeShare()" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:#888;padding:0 4px">&times;</button>
-    </div>
-    <div class="sh-sub">3つの方法から選べます</div>
-
-    <!-- ① コピペ共有（今すぐ使える） -->
-    <div class="sh-section" style="border-color:var(--bm);background:#f0f7ff">
-      <h4>① データをコピペで共有 <span class="view-badge" style="background:#fff3cd;color:#856404">今すぐ使える</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        データをテキストでエクスポートし、LINEやメールで送れます。受け取った側がインポートすれば同じ状態になります。
-      </p>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button class="btn bp sm" onclick="doExport()" style="flex:1">📤 データをコピー（エクスポート）</button>
-      </div>
-      <div id="export-area" style="display:none;margin-bottom:8px">
-        <div class="export-box">
-          <textarea class="export-txt" id="export-txt" readonly></textarea>
-        </div>
-        <div style="font-size:10px;color:#666">↑ 全選択してコピーし、相手にLINE・メールで送ってください</div>
-      </div>
-      <div style="border-top:1px solid var(--bb);padding-top:8px;margin-top:4px">
-        <div style="font-size:11px;font-weight:700;color:var(--bd);margin-bottom:6px">受け取ったデータを取り込む（インポート）</div>
-        <textarea class="import-txt" id="import-txt" placeholder="受け取ったデータをここに貼り付けてください..."></textarea>
-        <button class="btn bg2 sm" onclick="doImport()" style="margin-top:6px;width:100%">📥 インポートして反映</button>
-        <div id="import-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
-      </div>
-    </div>
-
-    <!-- ② GitHub Pages（恒久URL・リアルタイム可能） -->
-    <div class="sh-section" style="border-color:#6f42c1;background:#faf5ff">
-      <h4>② GitHub Pages で公開 <span class="view-badge" style="background:#ede9fe;color:#6f42c1;border:1px solid #c4b5fd">恒久URL・無料</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        一度設定すれば <strong>https://あなた名.github.io/jpa-padel/</strong> という永続URLができます。
-        スマホのQRコードで選手に配布できます。
-      </p>
-      <div class="gh-steps">
-        <strong>設定手順（初回のみ・約5分）</strong><br>
-        1. <a href="https://github.com" target="_blank">github.com</a> で無料アカウント作成<br>
-        2. 「New repository」→ 名前を <code>jpa-padel</code> にして作成<br>
-        3. 「Add file」→「Upload files」→ このHTMLファイルを <code>index.html</code> という名前でアップロード<br>
-        4. Settings → Pages → Branch: main → Save<br>
-        5. 数分後に <code>https://ユーザー名.github.io/jpa-padel/</code> でアクセス可能<br>
-        6. <strong>スコアを更新したら</strong>、このHTMLファイルを上書きアップロードするだけ
-      </div>
-      <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
-    </div>
-
-    <!-- ③ GitHub自動同期（推奨・無料・無制限） -->
-    <div class="sh-section" style="border-color:#238636;background:#f0fff4">
-      <h4>③ GitHub自動同期 <span class="view-badge" style="background:#e6ffec;color:#1a7a4a;border:1px solid #a7d7a0">推奨・無料・無制限</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">スコア更新を自動でGitHubに保存。回覧者が何百人でも費用ゼロ。</p>
-      <div id="gh-inactive">
-        <div style="font-size:11px;margin-bottom:8px;line-height:1.7;background:white;padding:8px;border-radius:5px">
-          <strong>設定手順：</strong><br>
-          1. <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">GitHub Token生成</a>（Expiration: No expiration、Scope: repo にチェック）<br>
-          2. 下記に入力して「設定保存」
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
-          <input id="gh-owner" type="text" placeholder="GitHubユーザー名 (例: koji)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-          <input id="gh-repo"  type="text" placeholder="リポジトリ名 (例: padel)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-          <input id="gh-token" type="password" placeholder="ghp_xxxx（Personal Access Token）" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-        </div>
-        <button class="btn bg2 sm" onclick="saveGHSettings(this)" style="width:100%">GitHub同期を設定する</button>
-        <div id="gh-setup-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
-      </div>
-      <div id="gh-active" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="sync-dot ok"></span>
-          <span style="font-size:12px;color:var(--ok);font-weight:700">GitHub同期設定済み</span>
-          <button class="btn bd2 sm" onclick="clearGHSettings()" style="margin-left:auto">解除</button>
-        </div>
-        <div style="font-size:11px;color:#555;margin-bottom:8px">
-          リポジトリ: <strong id="gh-info"></strong><br>
-          <span style="font-size:10px">回覧者URL:</span><br>
-          <code id="gh-pub-url" style="font-size:9px;word-break:break-all;background:#f4f8ff;padding:3px 5px;border-radius:3px;display:block;margin-top:2px"></code>
-        </div>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyGHPubUrl()">📋 URLコピー</button>
-          <button class="btn bs sm" onclick="genGHQR()">QR</button>
-        </div>
-        <div id="gh-qr-area" style="text-align:center;margin-top:8px;display:none">
-          <canvas id="gh-qr-canvas" width="160" height="160" style="border-radius:6px"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- ④ JSONBin同期（回覧者少数向け） -->
-    <div class="sh-section">
-      <h4>④ JSONBin自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">回覧者少数向け</span></h4>
-      <p style="font-size:11px;color:#666;margin-bottom:8px">
-        JSONBin.io APIを使います。<br>
-        ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
-        GitHub Pages等のURL（https://）からアクセスした場合のみ使えます。
-      </p>
-      <div id="rt-prompt">
-        <button class="btn bg2 sm" onclick="showRtSetup()" style="width:100%">⚡ リアルタイム同期を設定する（https環境のみ）</button>
-      </div>
-      <div id="rt-setup" style="display:none">
-        <div style="background:white;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px;color:#333;line-height:1.7">
-          <strong>設定手順：</strong><br>
-          1. <a href="https://jsonbin.io" target="_blank" style="color:var(--bm)">jsonbin.io</a> で無料アカウント作成<br>
-          2. API Keys → Secret Key をコピー<br>
-          3. 下に貼り付けて「同期開始」
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <input class="sync-api-input" id="rt-apikey" type="password" placeholder="$2a$10$xxxx...">
-          <button class="btn bp sm" onclick="startRealtimeSync(this)">同期開始</button>
-        </div>
-        <div id="rt-setup-err" style="font-size:10px;color:#dc3545;display:none"></div>
-      </div>
-      <div id="rt-active" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="sync-dot ok"></span>
-          <span style="font-size:12px;color:var(--ok);font-weight:700">同期中</span>
-          <span id="rt-bin-id" style="font-size:10px;color:#888;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis"></span>
-          <button class="btn bd2 sm" onclick="stopRealtimeSync()">停止</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-admin" rows="2" readonly placeholder="管理URL（生成中...）"></textarea>
-        <div class="sh-btns" style="margin-bottom:6px">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-admin')">📋 管理URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-admin')">QR</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-public" rows="2" readonly placeholder="回覧URL（生成中...）"></textarea>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-public')">📋 回覧URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-public')">QR</button>
-        </div>
-      </div>
-      <span class="rt-badge" id="rt-status-badge" style="display:none">同期中</span>
-    </div>
-
-    <div id="qr-area" style="text-align:center;display:none;margin-top:8px">
-      <canvas id="qr-canvas" width="180" height="180"></canvas>
-      <div style="font-size:10px;color:#888;margin-top:4px" id="qr-label"></div>
-    </div>
-
-    <!-- スナップショットURL（折りたたみ） -->
-    <details style="margin-top:8px">
-      <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
-      <div style="padding:8px 0">
-        <textarea class=
+</body>
+</html>
