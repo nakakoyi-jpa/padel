@@ -341,14 +341,7 @@ body.public-only #pub-header { display:flex!important }
     <div class="card">
       <div class="ch">📡 GitHub同期設定（公開URL用）</div>
       <div class="cb">
-        <div id="gh-inactive">
-          <p style="font-size:11px;color:#555;margin-bottom:10px">設定すると保存のたびに自動で公開URLに反映されます。<a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">GitHub Token生成</a>（Scope: repo）</p>
-          <div class="fr"><label>ユーザー名</label><input id="gh-owner" type="text" placeholder="nakakoyi-jpa"></div>
-          <div class="fr"><label>リポジトリ</label><input id="gh-repo" type="text" placeholder="padel"></div>
-          <div class="fr"><label>Token</label><input id="gh-token" type="password" placeholder="ghp_..."></div>
-          <div id="gh-setup-err" style="color:#dc3545;font-size:11px;display:none;margin-bottom:8px"></div>
-          <button class="btn bp sm" onclick="saveGHSettings(this)">GitHub同期を設定する</button>
-        </div>
+        <div id="gh-inactive"><div style="font-size:11px;margin-bottom:8px;line-height:1.7;background:#fffbe6;padding:8px;border-radius:5px;border:1px solid #ffe08a"><strong>📡 Tokenを入力するだけで自動同期！</strong><br>リポジトリ: <code>nakakoyi-jpa/padel</code>(設定済み)<br><a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">Token生成はこちら</a>（Scope: repo、No expiration）</div><input id="gh-owner" type="hidden" value="nakakoyi-jpa"><input id="gh-repo" type="hidden" value="padel"><div style="display:flex;gap:8px;margin-bottom:8px"><input id="gh-token" type="password" placeholder="ghp_xxxx（Personal Access Token）" style="flex:1;padding:7px 10px;border:1px solid var(--bb);border-radius:6px;font-size:13px;font-family:inherit"><button class="btn bp" onclick="saveGHSettings(this)" style="white-space:nowrap">接続する</button></div><div id="gh-setup-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div></div>
         <div id="gh-active" style="display:none">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span style="color:var(--ok);font-weight:700">● 同期中</span>
@@ -618,8 +611,8 @@ function saveSponsorsLocal(){try{localStorage.setItem('jpa_sponsors',JSON.string
 loadSponsors();
 
 // ── GitHub API sync state (defined early so all functions can use GH) ──
-let GH={owner:'',repo:'',token:'',sha:'',pollTimer:null,lastHash:''};
-(function loadGHConfig(){try{const v=localStorage.getItem('jpa_gh_v1');if(v){const p=JSON.parse(v);GH.owner=p.o||'';GH.repo=p.r||'';GH.token=p.t||'';}}catch(e){}})();
+let GH={owner:'nakakoyi-jpa',repo:'padel',token:'',sha:'',pollTimer:null,lastHash:''};
+(function loadGHConfig(){try{const v=localStorage.getItem('jpa_gh_v1');if(v){const p=JSON.parse(v);GH.owner=p.o||GH.owner;GH.repo=p.r||GH.repo;GH.token=p.t||'';}}catch(e){}})();
 function saveGHConfig(){try{localStorage.setItem('jpa_gh_v1',JSON.stringify({o:GH.owner,r:GH.repo,t:GH.token}));}catch(e){}}
 function ghRawUrl(){return 'https://raw.githubusercontent.com/'+GH.owner+'/'+GH.repo+'/main/jpa-data.json';}
 function ghApiUrl(){return 'https://api.github.com/repos/'+GH.owner+'/'+GH.repo+'/contents/jpa-data.json';}
@@ -2371,7 +2364,7 @@ function showGHSection(){
   const active=document.getElementById('gh-active');
   const inactive=document.getElementById('gh-inactive');
   if(!active||!inactive)return;
-  if(GH.owner&&GH.repo&&GH.token){
+  if(GH.token){
     inactive.style.display='none';active.style.display='block';
     document.getElementById('gh-info').textContent=GH.owner+'/'+GH.repo;
     document.getElementById('gh-pub-url').textContent=buildPublicUrl();
