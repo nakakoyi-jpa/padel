@@ -1512,9 +1512,10 @@ function scheduleMatches(matches, courts){
   day1Other.sort((a,b)=>{
     const ka=(a.age===40&&a.round==='1R')?-9999:-a.age;
     const kb=(b.age===40&&b.round==='1R')?-9999:-b.age;
-    if(ka!==kb)return ka-kb;
-    const ga=(a.gender==='F')?0:1;
-    const gb=(b.gender==='F')?0:1;
+        if(ka!==kb)return ka-kb;
+    // cat文字列で女子判定（女子55+など）→ 女子を先に
+    const ga=(a.cat&&a.cat.startsWith('女子'))?0:1;
+    const gb=(b.cat&&b.cat.startsWith('女子'))?0:1;
     return ga-gb;
   });
   queue.push(...day1Other);
