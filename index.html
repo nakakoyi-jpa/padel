@@ -2676,23 +2676,46 @@ function buildShareUrl(publicOnly){
 
 // ── Share modal open/close ──
 function openShare(){
-  // Snapshot URLs
-  document.getElementById('url-full').value=buildShareUrl(false);
-  document.getElementById('url-public').value=buildShareUrl(true);
-  document.getElementById('qr-area').style.display='none';
+  // Snapshot URLs（要素が存在する場合のみ設定）
+  const elFull=document.getElementById('url-full');
+  const elPub=document.getElementById('url-public');
+  if(elFull)elFull.value=buildShareUrl(false);
+  if(elPub)elPub.value=buildShareUrl(true);
+  const qrArea=document.getElementById('qr-area');
+  if(qrArea)qrArea.style.display='none';
   // Show correct RT state
+  const rtPrompt=document.getElementById('rt-prompt');
+  const rtSetup=document.getElementById('rt-setup');
+  const rtActive=document.getElementById('rt-active');
   if(RT.binId && RT.isAdmin){
-    document.getElementById('rt-prompt').style.display='none';
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='block';
-    document.getElementById('rt-bin-id').textContent='BIN: '+RT.binId;
-    document.getElementById('rt-status-badge').textContent='同期中';
-    document.getElementById('rt-status-badge').style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';
+    if(rtPrompt)rtPrompt.style.display='none';
+    if(rtSetup)rtSetup.style.display='none';
+    if(rtActive)rtActive.style.display='block';
+    const binId=document.getElementById('rt-bin-id');
+    const badge=document.getElementById('rt-status-badge');
+    if(binId)binId.textContent='BIN: '+RT.binId;
+    if(badge){badge.textContent='同期中';badge.style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';}
     updateRtUrls();
   } else {
-    document.getElementById('rt-prompt').style.display='block';
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='none';
+    if(rtPrompt)rtPrompt.style.display='block';
+    if(rtSetup)rtSetup.style.display='none';
+    if(rtActive)rtActive.style.display='none';
+  }
+  // GitHub同期状態を表示
+  const ghInactive=document.getElementById('gh-inactive');
+  const ghActive=document.getElementById('gh-active');
+  if(ghInactive&&ghActive){
+    if(GH.owner&&GH.repo){
+      ghInactive.style.display='none';ghActive.style.display='block';
+      const ownerEl=document.getElementById('gh-owner-disp');
+      if(ownerEl)ownerEl.textContent=GH.owner+'/'+GH.repo;
+    }else{
+      ghInactive.style.display='block';ghActive.style.display='none';
+      const ownerEl=document.getElementById('gh-owner');
+      if(GH.owner&&ownerEl)ownerEl.value=GH.owner;
+      const repoEl=document.getElementById('gh-repo');
+      if(GH.repo&&repoEl)repoEl.value=GH.repo;
+    }
   }
   document.getElementById('share-mo').classList.add('open');
 }
