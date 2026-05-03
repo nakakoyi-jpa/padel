@@ -2838,44 +2838,48 @@ function printDraw(){
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function tr(s,n){s=String(s||'');return s.length>n?s.slice(0,n)+'…':s;}
 
-  // SVG bracket constants
-  const CH=24,SH=14,MH=CH*2+1+SH; // cell height, score height, match height = 63
-  const SLOT0=MH+14;               // base slot height round0 = 77
-  const RW=168,CW=22,SW=RW+CW*2;  // round width, connector width, step width = 212
-  const PX=12,PY=22;
+  // SVG constants — sized so 16-team bracket fits in A4 landscape body
+  const CH=22,SH=12,MH=CH*2+1+SH; // 57px match height
+  const SLOT0=MH+10;               // 67px slot height
+  const RW=158,CW=20,SW=RW+CW*2;  // 198px step width
+  const PX=10,PY=18,HDR_H=18;     // padding + round header height
   const SC=['#FFD700','#C0C0C0','#cd7f32','#a0d8ef'];
   const TC=['#7a5800','#444','#5a2d00','#1a4a6e'];
   const BD='#042C53',BM='#185FA5',BB='#B5D4F4';
 
   function slH(r){return SLOT0*Math.pow(2,r);}
-  function mCY(r,mi){return PY+mi*slH(r)+slH(r)/2;}
+  // mCY is offset by HDR_H for the round header bar
+  function mCY(r,mi){return HDR_H+PY+mi*slH(r)+slH(r)/2;}
 
   function genSVG(cat,draw,sz){
     const rounds=Math.log2(np2(sz));
+    if(rounds<1)return '<p style="color:#999;padding:20px">ドローデータがありません</p>';
     const nSeeds=seedCount(sz);
     const sPos=seedPositions(sz).slice(0,nSeeds);
     const numR0=sz/2;
-    const svgH=numR0*SLOT0+PY*2+22; // +22 for round headers
-    const svgW=rounds*SW+PX*2;
+    // viewBox height: HDR_H + PY*2 + numR0 * SLOT0
+    const VH=HDR_H+PY*2+numR0*SLOT0;
+    const VW=rounds*SW+PX*2;
     const p=[];
-    p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" style="display:block;width:100%;height:auto">`);
+    // No width/height attrs — CSS controls display size
+    p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMinYMin meet" class="bracket-svg">`);
     p.push(`<defs><style>text{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;}</style></defs>`);
-    p.push(`<rect width="${svgW}" height="${svgH}" fill="white"/>`);
+    p.push(`<rect width="${VW}" height="${VH}" fill="white"/>`);
     const rn=roundNames(rounds);
     // Round header bars
     for(let ri=0;ri<rounds;ri++){
       const bx=PX+ri*SW;
       const day=getDay(ri,rounds);
       const hc=day===1?BM:'#b05000';
-      p.push(`<rect x="${bx}" y="0" width="${RW}" height="20" fill="${hc}" rx="3"/>`);
-      p.push(`<text x="${bx+RW/2}" y="14" text-anchor="middle" font-size="10.5" fill="white" font-weight="700">${eh(rn[ri])}${day===1?' [1日目]':' [2日目]'}</text>`);
+      p.push(`<rect x="${bx}" y="0" width="${RW}" height="${HDR_H}" fill="${hc}" rx="3"/>`);
+      p.push(`<text x="${bx+RW/2}" y="${HDR_H-4}" text-anchor="middle" font-size="10" fill="white" font-weight="700">${eh(rn[ri])}${day===1?' [1日目]':' [2日目]'}</text>`);
     }
     // Matches
     for(let ri=0;ri<rounds;ri++){
       const mc=sz/Math.pow(2,ri+1);
       const bx=PX+ri*SW;
       for(let mi=0;mi<mc;mi++){
-        const cy=mCY(ri,mi)+22; // offset for header
+        const cy=mCY(ri,mi);
         const by=cy-MH/2;
         const key='r'+ri+'_m'+mi;
         const wIdx=(draw.winners&&draw.winners[key]!==undefined)?draw.winners[key]:undefined;
@@ -2894,57 +2898,57 @@ function printDraw(){
         const iB1=!p1.trim()||p1==='BYE';
         const iB2=!p2.trim()||p2==='BYE';
         const iW1=wIdx===0,iW2=wIdx===1;
-        // Box
-        p.push(`<rect x="${bx}" y="${by}" width="${RW}" height="${MH}" fill="white" stroke="${BD}" stroke-width="1.2" rx="3"/>`);
-        // P1 bg
-        if(iW1)p.push(`<rect x="${bx+0.7}" y="${by+0.7}" width="${RW-1.4}" height="${CH-0.7}" fill="#d8eefa" rx="2.5"/>`);
-        else if(iB1)p.push(`<rect x="${bx+0.7}" y="${by+0.7}" width="${RW-1.4}" height="${CH-0.7}" fill="#f6f6f6" rx="2.5"/>`);
-        // P2 bg
+        // Match box
+        p.push(`<rect x="${bx}" y="${by}" width="${RW}" height="${MH}" fill="white" stroke="${BD}" stroke-width="1.1" rx="3"/>`);
+        // P1 row bg
+        if(iW1)p.push(`<rect x="${bx+0.6}" y="${by+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#d4ebf8" rx="2.5"/>`);
+        else if(iB1&&ri===0)p.push(`<rect x="${bx+0.6}" y="${by+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#f5f5f5" rx="2.5"/>`);
+        // P2 row bg
         const p2y=by+CH+1;
-        if(iW2)p.push(`<rect x="${bx+0.7}" y="${p2y+0.7}" width="${RW-1.4}" height="${CH-0.7}" fill="#d8eefa" rx="2.5"/>`);
-        else if(iB2)p.push(`<rect x="${bx+0.7}" y="${p2y+0.7}" width="${RW-1.4}" height="${CH-0.7}" fill="#f6f6f6" rx="2.5"/>`);
+        if(iW2)p.push(`<rect x="${bx+0.6}" y="${p2y+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#d4ebf8" rx="2.5"/>`);
+        else if(iB2&&ri===0)p.push(`<rect x="${bx+0.6}" y="${p2y+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#f5f5f5" rx="2.5"/>`);
         // Divider
-        p.push(`<line x1="${bx+1}" y1="${by+CH+0.5}" x2="${bx+RW-1}" y2="${by+CH+0.5}" stroke="${BB}" stroke-width="0.8"/>`);
+        p.push(`<line x1="${bx+1}" y1="${by+CH+0.5}" x2="${bx+RW-1}" y2="${by+CH+0.5}" stroke="${BB}" stroke-width="0.7"/>`);
         // Score bar
         const scy=by+CH*2+1;
         if(scStr){
-          p.push(`<rect x="${bx+0.7}" y="${scy+0.7}" width="${RW-1.4}" height="${SH-1}" fill="#e8f5ee" rx="2"/>`);
-          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#b0dcb8" stroke-width="0.7"/>`);
-          p.push(`<text x="${bx+RW/2}" y="${scy+SH/2+3.5}" text-anchor="middle" font-size="10" fill="#1a7a4a" font-weight="700">${eh(scStr)}</text>`);
+          p.push(`<rect x="${bx+0.6}" y="${scy+0.6}" width="${RW-1.2}" height="${SH-1}" fill="#e8f5ee" rx="2"/>`);
+          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#aed6b5" stroke-width="0.6"/>`);
+          p.push(`<text x="${bx+RW/2}" y="${scy+SH/2+3}" text-anchor="middle" font-size="9" fill="#1a7a4a" font-weight="700">${eh(scStr)}</text>`);
         }else{
-          p.push(`<rect x="${bx+0.7}" y="${scy+0.7}" width="${RW-1.4}" height="${SH-1}" fill="#fafafa" rx="2"/>`);
-          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#e4e4e4" stroke-width="0.7"/>`);
+          p.push(`<rect x="${bx+0.6}" y="${scy+0.6}" width="${RW-1.2}" height="${SH-1}" fill="#fafafa" rx="2"/>`);
+          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#e0e0e0" stroke-width="0.6"/>`);
         }
         // Winner arrow
-        if(iW1)p.push(`<text x="${bx+RW-5}" y="${by+CH/2+4}" text-anchor="end" font-size="9" fill="${BM}">▶</text>`);
-        if(iW2)p.push(`<text x="${bx+RW-5}" y="${p2y+CH/2+4}" text-anchor="end" font-size="9" fill="${BM}">▶</text>`);
+        if(iW1)p.push(`<text x="${bx+RW-5}" y="${by+CH/2+4}" text-anchor="end" font-size="8" fill="${BM}">▶</text>`);
+        if(iW2)p.push(`<text x="${bx+RW-5}" y="${p2y+CH/2+4}" text-anchor="end" font-size="8" fill="${BM}">▶</text>`);
         // Seed badges
-        let x1=bx+6,x2=bx+6;
+        let x1=bx+5,x2=bx+5;
         if(sA>0){
-          p.push(`<circle cx="${bx+10}" cy="${by+CH/2}" r="8" fill="${SC[sA-1]}"/>`);
-          p.push(`<text x="${bx+10}" y="${by+CH/2+3.5}" text-anchor="middle" font-size="7.5" fill="${TC[sA-1]}" font-weight="700">S${sA}</text>`);
-          x1=bx+22;
+          p.push(`<circle cx="${bx+9}" cy="${by+CH/2}" r="7" fill="${SC[sA-1]}"/>`);
+          p.push(`<text x="${bx+9}" y="${by+CH/2+3}" text-anchor="middle" font-size="6.5" fill="${TC[sA-1]}" font-weight="700">S${sA}</text>`);
+          x1=bx+20;
         }
         if(sB>0){
-          p.push(`<circle cx="${bx+10}" cy="${p2y+CH/2}" r="8" fill="${SC[sB-1]}"/>`);
-          p.push(`<text x="${bx+10}" y="${p2y+CH/2+3.5}" text-anchor="middle" font-size="7.5" fill="${TC[sB-1]}" font-weight="700">S${sB}</text>`);
-          x2=bx+22;
+          p.push(`<circle cx="${bx+9}" cy="${p2y+CH/2}" r="7" fill="${SC[sB-1]}"/>`);
+          p.push(`<text x="${bx+9}" y="${p2y+CH/2+3}" text-anchor="middle" font-size="6.5" fill="${TC[sB-1]}" font-weight="700">S${sB}</text>`);
+          x2=bx+20;
         }
-        // Names
+        // Player names
         const d1=ri===0?(p1||'(空枠)'):(p1||'未決定');
         const d2l=ri===0?(p2||'(空枠)'):(p2||'未決定');
-        p.push(`<text x="${x1}" y="${by+CH/2+4.5}" font-size="11" fill="${iW1?BD:iB1?'#ccc':'#1a1a2e'}" font-weight="${iW1?'700':'400'}" font-style="${iB1?'italic':'normal'}">${eh(tr(d1,16))}</text>`);
-        p.push(`<text x="${x2}" y="${p2y+CH/2+4.5}" font-size="11" fill="${iW2?BD:iB2?'#ccc':'#1a1a2e'}" font-weight="${iW2?'700':'400'}" font-style="${iB2?'italic':'normal'}">${eh(tr(d2l,16))}</text>`);
-        // Connector lines
+        p.push(`<text x="${x1}" y="${by+CH/2+4}" font-size="10.5" fill="${iW1?BD:iB1?'#ccc':'#1a1a2e'}" font-weight="${iW1?'700':'400'}" font-style="${(iB1&&ri===0)?'italic':'normal'}">${eh(tr(d1,17))}</text>`);
+        p.push(`<text x="${x2}" y="${p2y+CH/2+4}" font-size="10.5" fill="${iW2?BD:iB2?'#ccc':'#1a1a2e'}" font-weight="${iW2?'700':'400'}" font-style="${(iB2&&ri===0)?'italic':'normal'}">${eh(tr(d2l,17))}</text>`);
+        // Connector lines to next round
         if(ri<rounds-1){
           const rx=bx+RW,cx=rx+CW;
-          p.push(`<line x1="${rx}" y1="${cy}" x2="${cx}" y2="${cy}" stroke="${BD}" stroke-width="1.5" stroke-linecap="round"/>`);
-          if(mi%2===0){
-            const pCY=mCY(ri,mi+1)+22;
-            const nCY=mCY(ri+1,Math.floor(mi/2))+22;
+          p.push(`<line x1="${rx}" y1="${cy}" x2="${cx}" y2="${cy}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
+          if(mi%2===0&&mi+1<mc){
+            const pCY=mCY(ri,mi+1);
+            const nCY=mCY(ri+1,Math.floor(mi/2));
             const nBX=PX+(ri+1)*SW;
-            p.push(`<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${pCY}" stroke="${BD}" stroke-width="1.5" stroke-linecap="round"/>`);
-            p.push(`<line x1="${cx}" y1="${nCY}" x2="${nBX}" y2="${nCY}" stroke="${BD}" stroke-width="1.5" stroke-linecap="round"/>`);
+            p.push(`<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${pCY}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
+            p.push(`<line x1="${cx}" y1="${nCY}" x2="${nBX}" y2="${nCY}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
           }
         }
       }
@@ -2955,78 +2959,89 @@ function printDraw(){
 
   function genRR(cat,draw){
     const pairs=(draw.pairs||[]).slice(0,3);
+    const allEmpty=pairs.every(p=>!p||!p.trim());
     const standings=calcRRStandings(pairs,draw);
-    let h=`<div style="margin-bottom:14px">
-      <div style="font-size:11px;color:#666;font-weight:600;margin-bottom:10px">総当たりリーグ（3組）</div>
-      <div style="display:flex;gap:14px;margin-bottom:18px">`;
+    let h=`<div class="rr-wrap">`;
+    // Pair boxes
+    h+=`<div class="rr-pairs">`;
     pairs.forEach((p,i)=>{
-      h+=`<div style="flex:1;border:2px solid ${BD};border-radius:7px;padding:10px 12px;background:#E6F1FB">
-        <div style="font-size:9px;font-weight:700;color:${BM};margin-bottom:5px;letter-spacing:.5px">PAIR ${i+1}</div>
-        <div style="font-size:14px;font-weight:700;color:${BD};min-height:20px">${eh(p||'─')}</div>
-      </div>`;
-    });
-    h+=`</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">`;
-    [[0,1],[0,2],[1,2]].forEach(([a,b],mi)=>{
-      const key='rr'+mi;
-      const w=draw.winners&&draw.winners[key];
-      const sc=draw.scores&&draw.scores[key];
-      const scTxt=sc?fmtScore(sc):'';
-      const done=sc!==undefined&&sc!==null;
-      h+=`<div style="border:1.5px solid ${done?'#71c99e':BB};border-radius:8px;padding:10px;background:${done?'#edfaf3':'white'};text-align:center">
-        <div style="font-size:9px;color:#999;margin-bottom:5px;font-weight:600">${a+1} vs ${b+1}</div>
-        <div style="font-size:12px;font-weight:${w===0?'700':'400'};color:${w===0?BD:'#555'};margin-bottom:3px">${eh(pairs[a]||'ペア'+(a+1))}</div>
-        <div style="font-size:9px;color:#bbb">vs</div>
-        <div style="font-size:12px;font-weight:${w===1?'700':'400'};color:${w===1?BD:'#555'};margin-top:3px">${eh(pairs[b]||'ペア'+(b+1))}</div>
-        ${scTxt?`<div style="font-size:11px;color:#1a7a4a;font-weight:700;margin-top:6px;padding-top:5px;border-top:1px solid #c3e6cb">${eh(scTxt)}</div>`:''}
+      const name=p&&p.trim()?p:'─';
+      h+=`<div class="pair-box">
+        <div class="pair-label">PAIR ${i+1}</div>
+        <div class="pair-name">${eh(name)}</div>
       </div>`;
     });
     h+=`</div>`;
-    if(standings.some(s=>s.played>0)){
-      const rbg=['#FFF9E6','#F5F5F5','#FFF5EE'];
-      const rlbl=['🥇','🥈','🥉'];
-      h+=`<table style="width:100%;border-collapse:collapse;font-size:12px;border-radius:7px;overflow:hidden;border:1.5px solid ${BD}">
-        <thead><tr style="background:${BD};color:white">
-          <th style="padding:7px 10px;text-align:left">順位 / ペア</th>
-          <th style="padding:7px 8px;text-align:center">勝</th><th style="padding:7px 8px;text-align:center">負</th>
-          <th style="padding:7px 8px;text-align:center">セット</th><th style="padding:7px 8px;text-align:center">ゲーム</th>
-        </tr></thead><tbody>`;
-      standings.forEach((s,i)=>{
-        h+=`<tr style="background:${rbg[i]||'white'}">
-          <td style="padding:7px 10px;font-weight:700;border-bottom:1px solid #eee">${rlbl[i]} ${eh(s.name)}</td>
-          <td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee">${s.wins}</td>
-          <td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee">${s.losses}</td>
-          <td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee">${s.setsW}/${s.setsL}</td>
-          <td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee">${s.gamesW}/${s.gamesL}</td>
-        </tr>`;
+    if(allEmpty){
+      h+=`<div class="no-data">ペアが未入力です</div>`;
+    }else{
+      // Match results grid
+      h+=`<div class="match-grid">`;
+      [[0,1],[0,2],[1,2]].forEach(([a,b],mi)=>{
+        const key='rr'+mi;
+        const w=draw.winners&&draw.winners[key];
+        const sc=draw.scores&&draw.scores[key];
+        const scTxt=sc?fmtScore(sc):'';
+        const done=sc!==undefined&&sc!==null;
+        h+=`<div class="match-card${done?' done':''}">
+          <div class="match-label">${a+1} vs ${b+1}</div>
+          <div class="match-team${w===0?' winner':''}">${eh(pairs[a]||'ペア'+(a+1))}</div>
+          <div class="match-vs">vs</div>
+          <div class="match-team${w===1?' winner':''}">${eh(pairs[b]||'ペア'+(b+1))}</div>
+          ${scTxt?`<div class="match-score">${eh(scTxt)}</div>`:''}
+        </div>`;
       });
-      h+=`</tbody></table>`;
+      h+=`</div>`;
+      // Standings
+      if(standings.some(s=>s.played>0)){
+        const rbg=['#FFF9E6','#F5F5F5','#FFF5EE'];
+        const rlbl=['🥇','🥈','🥉'];
+        h+=`<table class="standings-tbl">
+          <thead><tr>
+            <th style="text-align:left">順位 / ペア</th>
+            <th>勝</th><th>負</th><th>セット</th><th>ゲーム</th>
+          </tr></thead><tbody>`;
+        standings.forEach((s,i)=>{
+          h+=`<tr style="background:${rbg[i]||'white'}">
+            <td style="font-weight:700">${rlbl[i]} ${eh(s.name)}</td>
+            <td>${s.wins}</td><td>${s.losses}</td>
+            <td>${s.setsW}/${s.setsL}</td><td>${s.gamesW}/${s.gamesL}</td>
+          </tr>`;
+        });
+        h+=`</tbody></table>`;
+      }
     }
     h+=`</div>`;
     return h;
   }
 
+  // Sponsor footer HTML
   let spHTML='';
   if(spons.length>0){
-    spHTML=`<div class="pr-sp"><div class="sp-sep">SPONSORS</div><div class="sp-logos">`;
+    spHTML=`<div class="pr-sp"><span class="sp-label">SPONSORS</span><span class="sp-logos">`;
     spons.forEach((u,i)=>{spHTML+=`<img src="${u}" alt="スポンサー${i+1}" onerror="this.style.display='none'">`;});
-    spHTML+=`</div></div>`;
+    spHTML+=`</span></div>`;
   }
 
+  // Build pages — one category per page
   let pages='';
   cats.forEach((cat,idx)=>{
-    if(idx>0)pages+=`<div style="page-break-before:always"></div>`;
+    if(idx>0)pages+=`<div class="page-break"></div>`;
     const sz=getDrawSize(cat.id);
     const draw=S.draws[cat.id]||newDraw();
-    const infoLine=[venue,dateStr].filter(Boolean).join('　|　');
+    const infoLine=[venue,dateStr].filter(Boolean).join('　｜　');
+    const isRR=(sz==='rr');
+    // For bracket: show size info
+    const szLabel=isRR?'総当たりリーグ':`${sz}組トーナメント`;
     pages+=`<div class="pr-page">
       <div class="pr-hdr">
-        <div class="pr-hdr-left">
+        <div>
           <div class="pr-tname">${eh(tname)}</div>
-          ${infoLine?`<div class="pr-tsub">${eh(infoLine)}</div>`:''}
+          ${infoLine?`<div class="pr-sub">${eh(infoLine)}</div>`:''}
         </div>
-        <div class="pr-catbadge">${eh(cat.label)}</div>
+        <div class="pr-cat">${eh(cat.label)}</div>
       </div>
-      <div class="pr-body">${sz==='rr'?genRR(cat,draw):genSVG(cat,draw,sz)}</div>
+      <div class="pr-body ${isRR?'rr-body':'bracket-body'}">${isRR?genRR(cat,draw):genSVG(cat,draw,sz)}</div>
       ${spHTML}
     </div>`;
   });
@@ -3038,27 +3053,82 @@ function printDraw(){
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-@page{size:A4 landscape;margin:9mm 10mm}
-.pr-page{page-break-after:always;display:flex;flex-direction:column;min-height:calc(100vh - 2mm)}
-.pr-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:3px solid #042C53;margin-bottom:14px}
-.pr-tname{font-size:17px;font-weight:700;color:#042C53;line-height:1.2}
-.pr-tsub{font-size:10px;color:#666;margin-top:3px}
-.pr-catbadge{background:linear-gradient(135deg,#042C53 0%,#185FA5 100%);color:white;padding:7px 20px;border-radius:22px;font-size:15px;font-weight:700;white-space:nowrap;letter-spacing:.5px}
-.pr-body{flex:1;padding:2px 0 6px}
-.pr-sp{border-top:1px solid #ddd;padding:8px 0 4px;text-align:center;margin-top:auto}
-.sp-sep{font-size:8px;color:#aaa;letter-spacing:2px;margin-bottom:5px}
-.sp-logos{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}
-.sp-logos img{height:38px;max-width:110px;object-fit:contain}
+/* ─── Page layout ─── */
+@page{size:A4 landscape;margin:0}
+.pr-page{
+  width:297mm;height:210mm;
+  padding:8mm 10mm 6mm;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  page-break-after:always;
+  page-break-inside:avoid;
+}
+.page-break{page-break-after:always}
+/* ─── Header ─── */
+.pr-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:6px;border-bottom:2.5px solid #042C53;margin-bottom:10px;
+  flex-shrink:0;
+}
+.pr-tname{font-size:16px;font-weight:700;color:#042C53;line-height:1.2}
+.pr-sub{font-size:9px;color:#777;margin-top:2px}
+.pr-cat{
+  background:linear-gradient(135deg,#042C53,#185FA5);
+  color:white;padding:6px 18px;border-radius:20px;
+  font-size:14px;font-weight:700;white-space:nowrap;
+}
+/* ─── Body: bracket fills remaining height ─── */
+.pr-body{
+  flex:1;min-height:0;
+  display:flex;align-items:flex-start;justify-content:flex-start;
+  overflow:hidden;
+}
+/* SVG fills available height, width follows aspect ratio */
+.bracket-body .bracket-svg{
+  height:100%;width:auto;max-width:100%;display:block;
+}
+/* RR fills width naturally */
+.rr-body{display:block;overflow:hidden}
+/* ─── Sponsor footer ─── */
+.pr-sp{
+  flex-shrink:0;
+  border-top:1px solid #ddd;padding:5px 0 2px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;
+  margin-top:auto;
+}
+.sp-label{font-size:7.5px;color:#aaa;letter-spacing:2px}
+.sp-logos{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.sp-logos img{height:32px;max-width:90px;object-fit:contain}
+/* ─── RR styles ─── */
+.rr-wrap{padding:0;max-width:100%}
+.rr-pairs{display:flex;gap:12px;margin-bottom:14px}
+.pair-box{flex:1;border:2px solid #042C53;border-radius:6px;padding:9px 12px;background:#E6F1FB}
+.pair-label{font-size:8px;font-weight:700;color:#185FA5;margin-bottom:4px;letter-spacing:.5px}
+.pair-name{font-size:13px;font-weight:700;color:#042C53}
+.match-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.match-card{border:1.5px solid #B5D4F4;border-radius:7px;padding:10px;background:white;text-align:center}
+.match-card.done{border-color:#71c99e;background:#edfaf3}
+.match-label{font-size:8.5px;color:#aaa;font-weight:600;margin-bottom:5px}
+.match-team{font-size:12px;color:#555;margin:2px 0}
+.match-team.winner{font-weight:700;color:#042C53}
+.match-vs{font-size:8px;color:#ccc;margin:3px 0}
+.match-score{font-size:10px;color:#1a7a4a;font-weight:700;margin-top:6px;padding-top:5px;border-top:1px solid #c3e6cb}
+.standings-tbl{width:100%;border-collapse:collapse;font-size:11px;border:1.5px solid #042C53;border-radius:6px;overflow:hidden}
+.standings-tbl thead tr{background:#042C53;color:white}
+.standings-tbl th{padding:6px 8px;text-align:center}
+.standings-tbl td{padding:6px 8px;text-align:center;border-bottom:1px solid #e0e8f0}
+.no-data{color:#aaa;font-size:12px;padding:20px;text-align:center}
 </style>
 </head>
 <body>${pages}
-<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
+<script>window.onload=function(){setTimeout(function(){window.print();},600);};<\/script>
 </body></html>`;
 
-  const w=window.open('','_blank','width=1280,height=850');
+  const w=window.open('','_blank','width=1300,height=900');
   if(!w){alert('ポップアップがブロックされています。ブラウザの設定でポップアップを許可してください。');return;}
   w.document.write(html);w.document.close();
 }
+
 
 // ══════════════════════════════════════
 //  PROFESSIONAL PRINT — OOP
@@ -3241,33 +3311,4 @@ html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP
 .oc .cp{font-size:11px;color:#042C53;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .oc .cv{font-size:8.5px;color:#bbb;text-align:center;margin:2px 0}
 .oc .csc{font-size:10px;color:#1a7a4a;font-weight:700;text-align:center;margin-top:3px;padding-top:3px;border-top:1px solid #c3e6cb}
-.ec{text-align:center;color:#ddd;font-size:16px;padding:20px 0}
-.day-hdr{color:white;padding:8px 14px;font-size:13px;font-weight:700;border-radius:5px;margin:12px 0 8px;display:flex;align-items:center;gap:8px}
-.day-hdr.d1{background:#185FA5}
-.day-hdr.d2{background:#b05000}
-.oop-time{font-size:11px;font-weight:700;display:inline-block;min-width:44px}
-.oop-time.t-morn{color:#185FA5}.oop-time.t-noon{color:#c47700}.oop-time.t-aftn{color:#c04000}
-.oop-slot{font-size:9.5px;color:#888;margin-top:2px}
-.pr-sp{border-top:1px solid #ddd;padding:8px 0 2px;text-align:center;margin-top:16px}
-.sp-sep{font-size:8px;color:#aaa;letter-spacing:2px;margin-bottom:5px}
-.sp-logos{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
-.sp-logos img{height:36px;max-width:100px;object-fit:contain}
-</style>
-</head>
-<body>
-<div class="pr-hdr">
-  <div><div class="pr-tname">${eh(tname)}</div>${ds?`<div class="pr-tsub">🌧 雨天用　${eh(ds)}</div>`:''}</div>
-  <div class="pr-badge">🌧 雨天用 オーダーオブプレー</div>
-</div>
-${cloned.innerHTML}
-${spHTML}
-<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
-</body></html>`;
-  const w=window.open('','_blank','width=1280,height=850');
-  if(!w){alert('ポップアップがブロックされています。');return;}
-  w.document.write(html);w.document.close();
-}
-
-</script>
-</body>
-</html>
+.ec{text-align:center;color:#ddd;font-size:16px;padding:20px 
