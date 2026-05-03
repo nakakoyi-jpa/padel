@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>日本パデル協会 全国ベテラン大会 管理システム</title>
 <style>
@@ -333,6 +334,7 @@ body.public-only #pub-header { display:flex!important }
         <div class="fr"><label>1日目</label><input id="s-d1" type="date"></div>
         <div class="fr"><label>2日目</label><input id="s-d2" type="date"></div>
         <div class="fr"><label>コート数</label><input id="s-courts" type="number" min="1" max="20" value="4" style="max-width:80px"></div>
+        <div class="fr"><label>公開URLドメイン</label><input id="s-pub-base" type="text" placeholder="https://nakakoyi-jpa.github.io/padel" style="max-width:340px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn bp" onclick="saveSettings()">保存する</button>
           <button class="btn bd2" onclick="resetAllData()" style="margin-left:auto">⚠️ 全データリセット</button>
@@ -384,7 +386,7 @@ body.public-only #pub-header { display:flex!important }
       <div id="draws-sponsor-footer" class="sponsor-footer" style="display:none"></div>
     </div>
     <div class="pdf-btn-bar">
-      <button class="btn bs sm" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+      <button class="btn bs sm" onclick="printDraw()">🖨️ 印刷 / PDF保存</button>
     </div>
   </div>
 
@@ -395,14 +397,14 @@ body.public-only #pub-header { display:flex!important }
     <div class="card">
       <div class="cb" style="padding:0"><div class="oop-wrap" id="oop-d1"></div></div>
     </div>
-    <div class="day-hdr d2">📅 2日目（準決勝・決勝）</div>
+    <div class="day-hdr d2">📅 2日目（リーグ・準決勝・決勝）</div>
     <div id="oop-d2-alert"></div>
     <div class="card">
       <div class="cb" style="padding:0"><div class="oop-wrap" id="oop-d2"></div></div>
     </div>
     <div id="oop-sponsor-footer" class="sponsor-footer" style="display:none"></div>
     <div class="pdf-btn-bar">
-      <button class="btn bs sm" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+      <button class="btn bs sm" onclick="printOOP()">🖨️ 印刷 / PDF保存</button>
     </div>
   </div>
 
@@ -420,7 +422,7 @@ body.public-only #pub-header { display:flex!important }
         <button class="btn bg2 sm" onclick="rainImportFromDraw()" title="ドロー編集のデータから雨天OOPを自動生成します">📥 ドローから生成</button>
         <button class="btn bs sm" onclick="rainResetDay()">🗑 今日リセット</button>
         <button class="btn bd2 sm" onclick="rainResetAll()" style="background:#7b1c1c" title="1日目・2日目すべてクリア">🗑 全リセット</button>
-        <button class="btn bs sm" onclick="window.print()">🖨️ 印刷/PDF</button>
+        <button class="btn bs sm" onclick="printRainOOP()">🖨️ 印刷/PDF</button>
       </div>
     </div>
     <!-- Day tabs -->
@@ -522,7 +524,7 @@ function getSeedNo(slot,seedPos){
 function makeSeedBadge(n){
   const s=document.createElement('span');
   s.className='sb';s.style.background=SD_COLORS[n-1]||'#ccc';s.style.color=SD_TC[n-1]||'#333';
-  s.textContent='S'+n; return s;
+  s.textContent=n<=2?'S'+n:'S'; return s;
 }
 
 // ══════════════════════════════════════
@@ -598,7 +600,7 @@ const DEFS=[
 function newDraw(){return {pairs:[],scores:{},winners:{},drawSize:undefined};}
 
 let S={
-  settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4},
+  settings:{name:'日本パデル協会 全国ベテラン大会',venue:'',d1:'',d2:'',courts:4,publicBase:''},
   cats:DEFS.map(c=>({...c,active:true})),
   draws:{}
 };
@@ -626,7 +628,19 @@ async function saveToGitHub(data){
     else{setSyncDot('err');const j=await r.json().catch(()=>({}));const sm=document.getElementById('sync-msg');if(sm)sm.textContent='GitHub同期エラー: '+(j.message||r.status);}
   }catch(e){setSyncDot('err');const sm=document.getElementById('sync-msg');if(sm)sm.textContent='GitHub接続エラー: '+e.message;}
 }
-async function fetchFromGitHub(){const r=await fetch(ghRawUrl()+'?t='+Date.now());if(!r.ok)throw new Error('GitHub fetch failed: '+r.status);return r.json();}
+async function fetchFromGitHub(){
+  if(GH.token){
+    // Contents API経由: CDNキャッシュなし・即時反映（トークンあり時）
+    const r=await fetch(ghApiUrl(),{headers:{'Authorization':'token '+GH.token},cache:'no-store'});
+    if(!r.ok)throw new Error('GitHub API failed: '+r.status);
+    const j=await r.json();
+    return JSON.parse(atob(j.content.replace(/\n/g,'')));
+  }
+  // tokenなし（回覧者）→ raw URL（CDNキャッシュあり・最大5分遅延）
+  const r=await fetch(ghRawUrl()+'?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok)throw new Error('GitHub fetch failed: '+r.status);
+  return r.json();
+}
 async function initGitHubSHA(){if(!GH.owner||!GH.repo||!GH.token)return;try{const r=await fetch(ghApiUrl(),{headers:{'Authorization':'token '+GH.token}});if(r.ok){const j=await r.json();GH.sha=j.sha||'';}}catch(e){}}
 function startGHPolling(){
   if(GH.pollTimer)clearInterval(GH.pollTimer);
@@ -676,6 +690,7 @@ function renderSettings(){
   document.getElementById('s-d1').value=s.d1||'';
   document.getElementById('s-d2').value=s.d2||'';
   document.getElementById('s-courts').value=s.courts||4;
+  document.getElementById('s-pub-base').value=s.publicBase||'';
   renderSponsorInputs();
   renderCatGrid();
 }
@@ -743,6 +758,7 @@ function saveSettings(){
   S.settings.d1=document.getElementById('s-d1').value;
   S.settings.d2=document.getElementById('s-d2').value;
   S.settings.courts=parseInt(document.getElementById('s-courts').value)||4;
+  S.settings.publicBase=document.getElementById('s-pub-base').value.trim().replace(/\/$/,'');
   persist();updateHeader();
   const b=event.target;b.textContent='✓ 保存しました';setTimeout(()=>b.textContent='保存する',2000);
 }
@@ -1386,7 +1402,7 @@ function getCatMatches(cat){
       const pairA=[0,1,0][origI], pairB=[1,2,2][origI];
       const w=draw.winners&&draw.winners[key];
       const sc=draw.scores&&draw.scores[key];
-      const day=rrRound<2?1:2; // rounds 0,1 → day1; round 2 → day2
+      const day=2; // 3組総当たりは全試合2日目
       res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
         p1:pairs[pairA]||'ペア'+(pairA+1),p2:pairs[pairB]||'ペア'+(pairB+1),
         round:'リーグ',day,rrRound,done:w!==undefined,score:sc});
@@ -1429,10 +1445,7 @@ function getCatMatches(cat){
         // Skip pure BYE matchups
         if(p1==='BYE'&&p2==='BYE')continue;
         if(p1==='BYE'||p2==='BYE')continue;
-        // SF and Final (day2): always show even if opponents not yet decided
-        // Earlier rounds (day1): only show when at least one opponent is known
-        const isSFOrFinal=(day===2);
-        if(!isSFOrFinal&&p1===null&&p2===null)continue;
+        // 全ラウンドの対戦カードを表示（未決定の場合も '未決定' で表示）
         res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
           p1:p1||'未決定',p2:p2||'未決定',
           round:rNames[ri],day,done:w!==undefined,score:sc});
@@ -1455,10 +1468,10 @@ function scheduleMatches(matches, courts){
   // ══ GOAL: pack all matches so every court is filled in every time slot (no gaps).
   //
   // Rules:
-  //   DAY1 – RR:
-  //     rrRound 0 → 1st league match
-  //     rrRound 1 → 2nd league match (≥2 match-slots gap from rrRound 0)
-  //   DAY2 – Tournament:
+  //   DAY1 – Tournament only (1R, 2R):
+  //     トーナメント形式のみ。RRは全て2日目。
+  //   DAY2 – RR + Tournament SF/Final:
+  //     rrRound 0 → 第1リーグ（インターバル）→ rrRound 1 → 第2リーグ（インターバル）→ rrRound 2
   //     SF (準決勝) first, then 2 match-slots interval, then Final (決勝)
   //     Each SF→interval→Final per category must be respected across all categories.
   //
@@ -1467,17 +1480,19 @@ function scheduleMatches(matches, courts){
   //   then assign to courts with cursor to fill every slot.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  const rrR0=[], rrR1=[], sfMatches=[], finalMatches=[], otherMatches=[];
+  const rrR0=[], rrR1=[], rrR2=[], sfMatches=[], finalMatches=[], otherMatches=[];
   matches.forEach(m=>{
     if(m._interval) return;
     if(m.round==='リーグ'&&m.rrRound===0)      rrR0.push(m);
     else if(m.round==='リーグ'&&m.rrRound===1)  rrR1.push(m);
+    else if(m.round==='リーグ'&&m.rrRound===2)  rrR2.push(m);
     else if(m.round==='準決勝')                  sfMatches.push(m);
     else if(m.round==='決勝')                    finalMatches.push(m);
     else                                          otherMatches.push(m);
   });
   rrR0.sort((a,b)=>b.age-a.age);
   rrR1.sort((a,b)=>b.age-a.age);
+  rrR2.sort((a,b)=>b.age-a.age);
   sfMatches.sort((a,b)=>b.age-a.age);
   finalMatches.sort((a,b)=>b.age-a.age);
   otherMatches.sort((a,b)=>b.age-a.age);
@@ -1490,56 +1505,59 @@ function scheduleMatches(matches, courts){
       p1:'—',p2:'—',round:'インターバル',done:false,_interval:true};
   }
 
-  // ── DAY1: RR scheduling ──
-  const hasRR = rrR0.length>0&&rrR1.length>0;
-  if(hasRR){
-    queue.push(...rrR0);
-    // Need 2 slots of filler between RR round 0 and round 1
-    const minFill=2*courts;
-    const fillers=otherMatches.splice(0,minFill);
-    queue.push(...fillers);
-    const gap=minFill-fillers.length;
-    for(let i=0;i<gap;i++) queue.push(makeInterval());
-    queue.push(...rrR1);
-  } else if(rrR0.length>0){
-    queue.push(...rrR0);
-  }
-
-  // Remaining day1 other matches
+  // ── DAY1: トーナメント 1R/2R のみ（RRは全て2日目）──
   const day1Other=otherMatches.filter(m=>m.day===1);
   const day2Other=otherMatches.filter(m=>m.day!==1);
+  // 男子40+1Rを男子50+の前に配置、同年齢内は女子を先に（例：女子55+1R → 男子55+1R）
+  day1Other.sort((a,b)=>{
+    const ka=(a.age===40&&a.round==='1R')?-9999:-a.age;
+    const kb=(b.age===40&&b.round==='1R')?-9999:-b.age;
+    if(ka!==kb)return ka-kb;
+    // 同年齢：cat文字列で女子判定（女子55+など）→ 女子を先に
+    const ga=(a.cat&&a.cat.startsWith('女子'))?0:1;
+    const gb=(b.cat&&b.cat.startsWith('女子'))?0:1;
+    return ga-gb;
+  });
   queue.push(...day1Other);
 
-  // ── DAY2: SF → interval → Final ──
-  // Also include RR day2 matches (rrRound 2) which appear as round='リーグ' with day=2
-  // They were already passed in as part of matches and land in otherMatches if not caught above
-  // Actually rrRound 2 has round='リーグ' not 'リーグ' with rrRound 0/1, it goes to otherMatches
-  const rrDay2=matches.filter(m=>!m._interval&&m.round==='リーグ'&&m.rrRound===2);
-  if(rrDay2.length>0){
-    rrDay2.sort((a,b)=>b.age-a.age);
-    queue.push(...rrDay2);
+  // ── DAY2: 3組総当たりを第1・第3・第5試合に配置、空きコートも他の試合で埋める ──
+  function makeEmpty(){return {id:'__empty__'+(ivCount++),_empty:true,age:0,p1:'',p2:'',round:'',cat:'',done:false};}
+  // 他のDay2試合プール（その他→SF→決勝の順）
+  const otherDay2Pool=[...day2Other,...sfMatches,...finalMatches];
+  function takeSlot(){
+    // コート数分取り出してスロットを埋める（足りなければ_emptyで補完）
+    const taken=otherDay2Pool.splice(0,courts);
+    while(taken.length<courts)taken.push(makeEmpty());
+    return taken;
   }
-
-  if(sfMatches.length>0||finalMatches.length>0){
-    // Add SF matches
-    queue.push(...sfMatches);
-
-    if(sfMatches.length>0&&finalMatches.length>0){
-      // Need 2 match-slots between SF and Final
-      const sfFillNeeded=2*courts;
-      // Try to insert day2 other matches as filler
-      const sfFillers=day2Other.splice(0,sfFillNeeded);
-      queue.push(...sfFillers);
-      const sfGap=sfFillNeeded-sfFillers.length;
-      for(let i=0;i<sfGap;i++) queue.push(makeInterval('準決勝→決勝インターバル'));
+  function fillToSlotBoundary(){
+    // RR試合後の空きコートをプールから埋める（足りなければ_emptyで補完）
+    const r=queue.length%courts;
+    if(r>0){
+      const needed=courts-r;
+      const taken=otherDay2Pool.splice(0,needed);
+      while(taken.length<needed)taken.push(makeEmpty());
+      queue.push(...taken);
     }
-
-    // Add Final matches
-    queue.push(...finalMatches);
   }
-
-  // Remaining day2 other matches
-  queue.push(...day2Other);
+  if(rrR0.length>0){
+    queue.push(...rrR0); fillToSlotBoundary();   // 第1試合: 第1リーグ＋他
+    queue.push(...takeSlot());                   // 第2試合: 他のDay2試合
+    if(rrR1.length>0){
+      queue.push(...rrR1); fillToSlotBoundary(); // 第3試合: 第2リーグ＋他
+      queue.push(...takeSlot());                 // 第4試合: 他のDay2試合
+      if(rrR2.length>0){
+        queue.push(...rrR2); fillToSlotBoundary(); // 第5試合: 第3リーグ＋他
+      }
+    } else if(rrR2.length>0){
+      queue.push(...rrR2); fillToSlotBoundary();
+    }
+  } else {
+    // RR試合なし: SF・決勝をそのまま配置
+    queue.push(...sfMatches,...finalMatches);
+  }
+  // 残りのDay2試合（SF・決勝の余り）
+  queue.push(...otherDay2Pool);
 
   // ── Assign queue to courts using cursor ──
   const scheduled=[];
@@ -1595,19 +1613,21 @@ function renderOOPTable(matches,containerId,courts){
   for(let c=1;c<=courts;c++)html+='<th>コート'+c+'</th>';
   html+='</tr></thead><tbody>';
 
-  slots.forEach((sl,si)=>{
-    const rule=getOOPTimeRule(si);
-    const isInterval=bySlot[sl]&&bySlot[sl][1]&&bySlot[sl][1]._interval;
-    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'"'+(isInterval?' style="background:#fff8e1"':'')+'>'      +'<td style="padding:5px 8px;vertical-align:middle">'
-      +(isInterval?'<div><span class="oop-time" style="background:#f0c000;color:#5a3e00;border-radius:12px;padding:3px 8px;font-size:10px;font-weight:700">⏱ インターバル</span></div>'
-        :'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
-        +'<div class="oop-slot">第'+(si+1)+'試合</div>')
+  // _emptyのみのスロットを除外（パッドアーティファクトを非表示）
+  const allCourtsArr=Array.from({length:courts},(_,i)=>i+1);
+  const visibleSlots=slots.filter(sl=>allCourtsArr.some(c=>{const m=bySlot[sl]&&bySlot[sl][c];return m&&!m._empty&&!m._interval;}));
+  let matchRowNum=0;
+  visibleSlots.forEach((sl,si)=>{
+    const rule=getOOPTimeRule(matchRowNum);
+    matchRowNum++;
+    html+='<tr class="oop-drag-row" draggable="true" data-si="'+si+'" data-cid="'+containerId+'">'
+      +'<td style="padding:5px 8px;vertical-align:middle">'
+      +'<div><span class="oop-time '+rule.cls+'">'+rule.label+'</span></div>'
+      +'<div class="oop-slot">第'+matchRowNum+'試合</div>'
       +'</td>';
     for(let c=1;c<=courts;c++){
       const m=bySlot[sl]&&bySlot[sl][c];
-      if(!m){html+='<td><div class="ec">—</div></td>';continue;}
-      // Interval marker row
-      if(m._interval){html+='<td colspan="'+courts+'" style="text-align:center;padding:8px;background:#fff8e1;color:#b07800;font-size:11px;font-weight:700;letter-spacing:0.5px">⏱ インターバル（休憩・準備時間）</td>';break;}
+      if(!m||m._empty||m._interval){html+='<td><div class="ec">—</div></td>';continue;}
       const isF=m.round==='決勝',isSF=m.round==='準決勝';
       const scTxt=m.score?fmtScore(m.score):'';
       html+='<td><div class="oc '+(isF?'fc':isSF?'sc':'')+'"><div class="cc">'+esc(m.cat)+' '+esc(m.round)+'</div>'
@@ -1698,7 +1718,7 @@ function renderOOP(){
 
   // Day1 → Day2 interval (when tournament has day2)
   if(day1AllDone&&hasDay2&&!sfDone){
-    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
+    alertHTML+='<div class="al-w" style="margin-top:4px">⏱️ 1日目の全試合終了 — 2日目（リーグ・準決勝・決勝）開始まで最低60分のインターバルをとってください</div>';
   }
 
   // RR-only: all 3 matches done → 60-min warning before next round or prize ceremony
@@ -1718,7 +1738,7 @@ function renderOOP(){
   // Date labels in day headers
   function fmtDJ(d){if(!d)return '';try{const dt=new Date(d+'T00:00:00');return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}catch(e){return '';}}
   const dh1=document.querySelector('.day-hdr.d1');if(dh1)dh1.textContent='📅 1日目（1R・2R）'+fmtDJ(S.settings.d1);
-  const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（準決勝・決勝）'+fmtDJ(S.settings.d2);
+  const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（リーグ・準決勝・決勝）'+fmtDJ(S.settings.d2);
 
   renderOOPTable(day1,'oop-d1',courts);
   const d2alert=document.getElementById('oop-d2-alert');d2alert.innerHTML='';
@@ -1925,14 +1945,16 @@ let PUB_BIN_ID='';
 })();
 
 function buildPublicUrl(){
-  const base=location.href.split('#')[0].split('?')[0];
-  // GitHub方式: ?view=public のみ (データはGitHub rawから自動取得)
-  if(GH.owner&&GH.repo&&GH.token){
-    return base+'?view=public';
-  }
-  // JSONBin方式
+  const base=(S.settings&&S.settings.publicBase)
+    ? S.settings.publicBase
+    : location.href.split('#')[0].split('?')[0];
+  // JSONBin方式を優先（リアルタイム同期中の場合は常にJSONBin URLを返す）
   if(RT&&RT.binId&&RT.apiKey){
     return base+'?view=public&bin='+RT.binId;
+  }
+  // GitHub方式: JSONBin未使用でGitHub設定がある場合
+  if(GH.owner&&GH.repo&&GH.token){
+    return base+'?view=public&gho='+encodeURIComponent(GH.owner)+'&ghr='+encodeURIComponent(GH.repo);
   }
   // Fallback: Base64 snapshot (static, no auto-update)
   const slim={settings:S.settings,cats:S.cats,draws:{}};
@@ -2349,6 +2371,11 @@ let RT={
   const rtBin=params.get('bin');
   const rtKey=params.get('k');
 
+  // gho/ghr パラメータ → 別デバイスの回覧者用にGH情報をセット
+  const ghoParam=params.get('gho');
+  const ghrParam=params.get('ghr');
+  if(ghoParam&&ghrParam&&!GH.owner){GH.owner=ghoParam;GH.repo=ghrParam;}
+
   // GitHub方式: ?view=public で開かれた場合、GitHubから最新データ取得
   if(publicOnly&&GH.owner&&GH.repo&&!rtBin){
     applyPublicOnlyUI(); // まず現在のローカルデータで表示
@@ -2649,23 +2676,46 @@ function buildShareUrl(publicOnly){
 
 // ── Share modal open/close ──
 function openShare(){
-  // Snapshot URLs
-  document.getElementById('url-full').value=buildShareUrl(false);
-  document.getElementById('url-public').value=buildShareUrl(true);
-  document.getElementById('qr-area').style.display='none';
+  // Snapshot URLs（要素が存在する場合のみ設定）
+  const elFull=document.getElementById('url-full');
+  const elPub=document.getElementById('url-public');
+  if(elFull)elFull.value=buildShareUrl(false);
+  if(elPub)elPub.value=buildShareUrl(true);
+  const qrArea=document.getElementById('qr-area');
+  if(qrArea)qrArea.style.display='none';
   // Show correct RT state
+  const rtPrompt=document.getElementById('rt-prompt');
+  const rtSetup=document.getElementById('rt-setup');
+  const rtActive=document.getElementById('rt-active');
   if(RT.binId && RT.isAdmin){
-    document.getElementById('rt-prompt').style.display='none';
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='block';
-    document.getElementById('rt-bin-id').textContent='BIN: '+RT.binId;
-    document.getElementById('rt-status-badge').textContent='同期中';
-    document.getElementById('rt-status-badge').style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';
+    if(rtPrompt)rtPrompt.style.display='none';
+    if(rtSetup)rtSetup.style.display='none';
+    if(rtActive)rtActive.style.display='block';
+    const binId=document.getElementById('rt-bin-id');
+    const badge=document.getElementById('rt-status-badge');
+    if(binId)binId.textContent='BIN: '+RT.binId;
+    if(badge){badge.textContent='同期中';badge.style.cssText='background:#e8f5ee;color:var(--ok);border-color:#71c99e';}
     updateRtUrls();
   } else {
-    document.getElementById('rt-prompt').style.display='block';
-    document.getElementById('rt-setup').style.display='none';
-    document.getElementById('rt-active').style.display='none';
+    if(rtPrompt)rtPrompt.style.display='block';
+    if(rtSetup)rtSetup.style.display='none';
+    if(rtActive)rtActive.style.display='none';
+  }
+  // GitHub同期状態を表示
+  const ghInactive=document.getElementById('gh-inactive');
+  const ghActive=document.getElementById('gh-active');
+  if(ghInactive&&ghActive){
+    if(GH.owner&&GH.repo){
+      ghInactive.style.display='none';ghActive.style.display='block';
+      const ownerEl=document.getElementById('gh-owner-disp');
+      if(ownerEl)ownerEl.textContent=GH.owner+'/'+GH.repo;
+    }else{
+      ghInactive.style.display='block';ghActive.style.display='none';
+      const ownerEl=document.getElementById('gh-owner');
+      if(GH.owner&&ownerEl)ownerEl.value=GH.owner;
+      const repoEl=document.getElementById('gh-repo');
+      if(GH.repo&&repoEl)repoEl.value=GH.repo;
+    }
   }
   document.getElementById('share-mo').classList.add('open');
 }
@@ -2771,167 +2821,523 @@ function doImport(){
   }
 }
 
-</script>
+// ══════════════════════════════════════
+//  PROFESSIONAL PRINT — DRAW
+// ══════════════════════════════════════
+function printDraw(){
+  const cats=S.cats.filter(c=>c.active);
+  if(!cats.length){alert('有効なカテゴリーがありません');return;}
+  const sett=S.settings;
+  const tname=sett.name||'日本パデル協会 全国ベテラン大会';
+  const venue=sett.venue||'';
+  const d1s=sett.d1?formatDateJP(sett.d1):'';
+  const d2s=sett.d2?formatDateJP(sett.d2):'';
+  const dateStr=[d1s,d2s].filter(Boolean).join(' ～ ');
+  const spons=(SPONSORS||[]).filter(u=>u&&u.trim());
 
-<!-- SHARE MODAL -->
-<div id="share-mo">
-  <div id="share-box">
-    <h3>🔗 共有</h3>
-    <div class="sh-sub">3つの方法から選べます</div>
+  function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function tr(s,n){s=String(s||'');return s.length>n?s.slice(0,n)+'…':s;}
 
-    <!-- ① コピペ共有（今すぐ使える） -->
-    <div class="sh-section" style="border-color:var(--bm);background:#f0f7ff">
-      <h4>① データをコピペで共有 <span class="view-badge" style="background:#fff3cd;color:#856404">今すぐ使える</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        データをテキストでエクスポートし、LINEやメールで送れます。受け取った側がインポートすれば同じ状態になります。
-      </p>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button class="btn bp sm" onclick="doExport()" style="flex:1">📤 データをコピー（エクスポート）</button>
-      </div>
-      <div id="export-area" style="display:none;margin-bottom:8px">
-        <div class="export-box">
-          <textarea class="export-txt" id="export-txt" readonly></textarea>
-        </div>
-        <div style="font-size:10px;color:#666">↑ 全選択してコピーし、相手にLINE・メールで送ってください</div>
-      </div>
-      <div style="border-top:1px solid var(--bb);padding-top:8px;margin-top:4px">
-        <div style="font-size:11px;font-weight:700;color:var(--bd);margin-bottom:6px">受け取ったデータを取り込む（インポート）</div>
-        <textarea class="import-txt" id="import-txt" placeholder="受け取ったデータをここに貼り付けてください..."></textarea>
-        <button class="btn bg2 sm" onclick="doImport()" style="margin-top:6px;width:100%">📥 インポートして反映</button>
-        <div id="import-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
-      </div>
-    </div>
+  // SVG constants — sized so 16-team bracket fits in A4 landscape body
+  const CH=22,SH=12,MH=CH*2+1+SH; // 57px match height
+  const SLOT0=MH+10;               // 67px slot height
+  const RW=158,CW=20,SW=RW+CW*2;  // 198px step width
+  const PX=10,PY=18,HDR_H=18;     // padding + round header height
+  const SC=['#FFD700','#C0C0C0','#cd7f32','#a0d8ef'];
+  const TC=['#7a5800','#444','#5a2d00','#1a4a6e'];
+  const BD='#042C53',BM='#185FA5',BB='#B5D4F4';
 
-    <!-- ② GitHub Pages（恒久URL・リアルタイム可能） -->
-    <div class="sh-section" style="border-color:#6f42c1;background:#faf5ff">
-      <h4>② GitHub Pages で公開 <span class="view-badge" style="background:#ede9fe;color:#6f42c1;border:1px solid #c4b5fd">恒久URL・無料</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">
-        一度設定すれば <strong>https://あなた名.github.io/jpa-padel/</strong> という永続URLができます。
-        スマホのQRコードで選手に配布できます。
-      </p>
-      <div class="gh-steps">
-        <strong>設定手順（初回のみ・約5分）</strong><br>
-        1. <a href="https://github.com" target="_blank">github.com</a> で無料アカウント作成<br>
-        2. 「New repository」→ 名前を <code>jpa-padel</code> にして作成<br>
-        3. 「Add file」→「Upload files」→ このHTMLファイルを <code>index.html</code> という名前でアップロード<br>
-        4. Settings → Pages → Branch: main → Save<br>
-        5. 数分後に <code>https://ユーザー名.github.io/jpa-padel/</code> でアクセス可能<br>
-        6. <strong>スコアを更新したら</strong>、このHTMLファイルを上書きアップロードするだけ
-      </div>
-      <div style="font-size:10px;color:#888;margin-top:6px">※ GitHubのファイルはすべて公開されます（大会データが見えます）</div>
-    </div>
+  function slH(r){return SLOT0*Math.pow(2,r);}
+  // mCY is offset by HDR_H for the round header bar
+  function mCY(r,mi){return HDR_H+PY+mi*slH(r)+slH(r)/2;}
 
-    <!-- ③ GitHub自動同期（推奨・無料・無制限） -->
-    <div class="sh-section" style="border-color:#238636;background:#f0fff4">
-      <h4>③ GitHub自動同期 <span class="view-badge" style="background:#e6ffec;color:#1a7a4a;border:1px solid #a7d7a0">推奨・無料・無制限</span></h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px">スコア更新を自動でGitHubに保存。回覧者が何百人でも費用ゼロ。</p>
-      <div id="gh-inactive">
-        <div style="font-size:11px;margin-bottom:8px;line-height:1.7;background:white;padding:8px;border-radius:5px">
-          <strong>設定手順：</strong><br>
-          1. <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--bm)">GitHub Token生成</a>（Expiration: No expiration、Scope: repo にチェック）<br>
-          2. 下記に入力して「設定保存」
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
-          <input id="gh-owner" type="text" placeholder="GitHubユーザー名 (例: koji)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-          <input id="gh-repo"  type="text" placeholder="リポジトリ名 (例: padel)" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-          <input id="gh-token" type="password" placeholder="ghp_xxxx（Personal Access Token）" style="padding:6px 10px;border:1px solid var(--bb);border-radius:6px;font-size:12px;font-family:inherit">
-        </div>
-        <button class="btn bg2 sm" onclick="saveGHSettings(this)" style="width:100%">GitHub同期を設定する</button>
-        <div id="gh-setup-err" style="font-size:10px;color:#dc3545;margin-top:4px;display:none"></div>
-      </div>
-      <div id="gh-active" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="sync-dot ok"></span>
-          <span style="font-size:12px;color:var(--ok);font-weight:700">GitHub同期設定済み</span>
-          <button class="btn bd2 sm" onclick="clearGHSettings()" style="margin-left:auto">解除</button>
-        </div>
-        <div style="font-size:11px;color:#555;margin-bottom:8px">
-          リポジトリ: <strong id="gh-info"></strong><br>
-          <span style="font-size:10px">回覧者URL:</span><br>
-          <code id="gh-pub-url" style="font-size:9px;word-break:break-all;background:#f4f8ff;padding:3px 5px;border-radius:3px;display:block;margin-top:2px"></code>
-        </div>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyGHPubUrl()">📋 URLコピー</button>
-          <button class="btn bs sm" onclick="genGHQR()">QR</button>
-        </div>
-        <div id="gh-qr-area" style="text-align:center;margin-top:8px;display:none">
-          <canvas id="gh-qr-canvas" width="160" height="160" style="border-radius:6px"></canvas>
-        </div>
-      </div>
-    </div>
+  function genSVG(cat,draw,sz){
+    const rounds=Math.log2(np2(sz));
+    if(rounds<1)return '<p style="color:#999;padding:20px">ドローデータがありません</p>';
+    const nSeeds=seedCount(sz);
+    const sPos=seedPositions(sz).slice(0,nSeeds);
+    const numR0=sz/2;
+    // viewBox height: HDR_H + PY*2 + numR0 * SLOT0
+    const VH=HDR_H+PY*2+numR0*SLOT0;
+    const VW=rounds*SW+PX*2;
+    const p=[];
+    // No width/height attrs — CSS controls display size
+    p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMinYMin meet" class="bracket-svg">`);
+    p.push(`<defs><style>text{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;}</style></defs>`);
+    p.push(`<rect width="${VW}" height="${VH}" fill="white"/>`);
+    const rn=roundNames(rounds);
+    // Round header bars
+    for(let ri=0;ri<rounds;ri++){
+      const bx=PX+ri*SW;
+      const day=getDay(ri,rounds);
+      const hc=day===1?BM:'#b05000';
+      p.push(`<rect x="${bx}" y="0" width="${RW}" height="${HDR_H}" fill="${hc}" rx="3"/>`);
+      p.push(`<text x="${bx+RW/2}" y="${HDR_H-4}" text-anchor="middle" font-size="10" fill="white" font-weight="700">${eh(rn[ri])}${day===1?' [1日目]':' [2日目]'}</text>`);
+    }
+    // Matches
+    for(let ri=0;ri<rounds;ri++){
+      const mc=sz/Math.pow(2,ri+1);
+      const bx=PX+ri*SW;
+      for(let mi=0;mi<mc;mi++){
+        const cy=mCY(ri,mi);
+        const by=cy-MH/2;
+        const key='r'+ri+'_m'+mi;
+        const wIdx=(draw.winners&&draw.winners[key]!==undefined)?draw.winners[key]:undefined;
+        const scObj=draw.scores&&draw.scores[key];
+        const scStr=scObj?fmtScore(scObj):'';
+        let p1='',p2='',sA=0,sB=0;
+        if(ri===0){
+          const sa=mi*2,sb=mi*2+1;
+          p1=(draw.pairs||[])[sa]||'';
+          p2=(draw.pairs||[])[sb]||'';
+          sA=getSeedNo(sa,sPos);sB=getSeedNo(sb,sPos);
+        }else{
+          p1=getSlot(draw,ri,mi,0,sz)||'';
+          p2=getSlot(draw,ri,mi,1,sz)||'';
+        }
+        const iB1=!p1.trim()||p1==='BYE';
+        const iB2=!p2.trim()||p2==='BYE';
+        const iW1=wIdx===0,iW2=wIdx===1;
+        // Match box
+        p.push(`<rect x="${bx}" y="${by}" width="${RW}" height="${MH}" fill="white" stroke="${BD}" stroke-width="1.1" rx="3"/>`);
+        // P1 row bg
+        if(iW1)p.push(`<rect x="${bx+0.6}" y="${by+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#d4ebf8" rx="2.5"/>`);
+        else if(iB1&&ri===0)p.push(`<rect x="${bx+0.6}" y="${by+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#f5f5f5" rx="2.5"/>`);
+        // P2 row bg
+        const p2y=by+CH+1;
+        if(iW2)p.push(`<rect x="${bx+0.6}" y="${p2y+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#d4ebf8" rx="2.5"/>`);
+        else if(iB2&&ri===0)p.push(`<rect x="${bx+0.6}" y="${p2y+0.6}" width="${RW-1.2}" height="${CH-0.6}" fill="#f5f5f5" rx="2.5"/>`);
+        // Divider
+        p.push(`<line x1="${bx+1}" y1="${by+CH+0.5}" x2="${bx+RW-1}" y2="${by+CH+0.5}" stroke="${BB}" stroke-width="0.7"/>`);
+        // Score bar
+        const scy=by+CH*2+1;
+        if(scStr){
+          p.push(`<rect x="${bx+0.6}" y="${scy+0.6}" width="${RW-1.2}" height="${SH-1}" fill="#e8f5ee" rx="2"/>`);
+          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#aed6b5" stroke-width="0.6"/>`);
+          p.push(`<text x="${bx+RW/2}" y="${scy+SH/2+3}" text-anchor="middle" font-size="9" fill="#1a7a4a" font-weight="700">${eh(scStr)}</text>`);
+        }else{
+          p.push(`<rect x="${bx+0.6}" y="${scy+0.6}" width="${RW-1.2}" height="${SH-1}" fill="#fafafa" rx="2"/>`);
+          p.push(`<line x1="${bx+1}" y1="${scy}" x2="${bx+RW-1}" y2="${scy}" stroke="#e0e0e0" stroke-width="0.6"/>`);
+        }
+        // Winner arrow
+        if(iW1)p.push(`<text x="${bx+RW-5}" y="${by+CH/2+4}" text-anchor="end" font-size="8" fill="${BM}">▶</text>`);
+        if(iW2)p.push(`<text x="${bx+RW-5}" y="${p2y+CH/2+4}" text-anchor="end" font-size="8" fill="${BM}">▶</text>`);
+        // Seed badges
+        let x1=bx+5,x2=bx+5;
+        if(sA>0){
+          p.push(`<circle cx="${bx+9}" cy="${by+CH/2}" r="7" fill="${SC[sA-1]}"/>`);
+          p.push(`<text x="${bx+9}" y="${by+CH/2+3}" text-anchor="middle" font-size="6.5" fill="${TC[sA-1]}" font-weight="700">${sA<=2?'S'+sA:'S'}</text>`);
+          x1=bx+20;
+        }
+        if(sB>0){
+          p.push(`<circle cx="${bx+9}" cy="${p2y+CH/2}" r="7" fill="${SC[sB-1]}"/>`);
+          p.push(`<text x="${bx+9}" y="${p2y+CH/2+3}" text-anchor="middle" font-size="6.5" fill="${TC[sB-1]}" font-weight="700">${sB<=2?'S'+sB:'S'}</text>`);
+          x2=bx+20;
+        }
+        // Player names
+        const d1=ri===0?(p1||'(空枠)'):(p1||'未決定');
+        const d2l=ri===0?(p2||'(空枠)'):(p2||'未決定');
+        p.push(`<text x="${x1}" y="${by+CH/2+4}" font-size="10.5" fill="${iW1?BD:iB1?'#ccc':'#1a1a2e'}" font-weight="${iW1?'700':'400'}" font-style="${(iB1&&ri===0)?'italic':'normal'}">${eh(tr(d1,17))}</text>`);
+        p.push(`<text x="${x2}" y="${p2y+CH/2+4}" font-size="10.5" fill="${iW2?BD:iB2?'#ccc':'#1a1a2e'}" font-weight="${iW2?'700':'400'}" font-style="${(iB2&&ri===0)?'italic':'normal'}">${eh(tr(d2l,17))}</text>`);
+        // Connector lines to next round
+        if(ri<rounds-1){
+          const rx=bx+RW,cx=rx+CW;
+          p.push(`<line x1="${rx}" y1="${cy}" x2="${cx}" y2="${cy}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
+          if(mi%2===0&&mi+1<mc){
+            const pCY=mCY(ri,mi+1);
+            const nCY=mCY(ri+1,Math.floor(mi/2));
+            const nBX=PX+(ri+1)*SW;
+            p.push(`<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${pCY}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
+            p.push(`<line x1="${cx}" y1="${nCY}" x2="${nBX}" y2="${nCY}" stroke="${BD}" stroke-width="1.4" stroke-linecap="round"/>`);
+          }
+        }
+      }
+    }
+    p.push('</svg>');
+    return p.join('');
+  }
 
-    <!-- ④ JSONBin同期（回覧者少数向け） -->
-    <div class="sh-section">
-      <h4>④ JSONBin自動同期 <span class="view-badge" style="background:#fff3cd;color:#856404">回覧者少数向け</span></h4>
-      <p style="font-size:11px;color:#666;margin-bottom:8px">
-        JSONBin.io APIを使います。<br>
-        ⚠️ <strong>ファイルをダブルクリックで開く（file://）場合は動作しません。</strong><br>
-        GitHub Pages等のURL（https://）からアクセスした場合のみ使えます。
-      </p>
-      <div id="rt-prompt">
-        <button class="btn bg2 sm" onclick="showRtSetup()" style="width:100%">⚡ リアルタイム同期を設定する（https環境のみ）</button>
-      </div>
-      <div id="rt-setup" style="display:none">
-        <div style="background:white;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px;color:#333;line-height:1.7">
-          <strong>設定手順：</strong><br>
-          1. <a href="https://jsonbin.io" target="_blank" style="color:var(--bm)">jsonbin.io</a> で無料アカウント作成<br>
-          2. API Keys → Secret Key をコピー<br>
-          3. 下に貼り付けて「同期開始」
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <input class="sync-api-input" id="rt-apikey" type="password" placeholder="$2a$10$xxxx...">
-          <button class="btn bp sm" onclick="startRealtimeSync(this)">同期開始</button>
-        </div>
-        <div id="rt-setup-err" style="font-size:10px;color:#dc3545;display:none"></div>
-      </div>
-      <div id="rt-active" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="sync-dot ok"></span>
-          <span style="font-size:12px;color:var(--ok);font-weight:700">同期中</span>
-          <span id="rt-bin-id" style="font-size:10px;color:#888;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis"></span>
-          <button class="btn bd2 sm" onclick="stopRealtimeSync()">停止</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-admin" rows="2" readonly placeholder="管理URL（生成中...）"></textarea>
-        <div class="sh-btns" style="margin-bottom:6px">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-admin')">📋 管理URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-admin')">QR</button>
-        </div>
-        <textarea class="sh-url" id="url-rt-public" rows="2" readonly placeholder="回覧URL（生成中...）"></textarea>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyUrl('url-rt-public')">📋 回覧URLコピー</button>
-          <button class="btn bs sm" onclick="genQR('url-rt-public')">QR</button>
-        </div>
-      </div>
-      <span class="rt-badge" id="rt-status-badge" style="display:none">同期中</span>
-    </div>
+  function genRR(cat,draw){
+    const pairs=(draw.pairs||[]).slice(0,3);
+    const allEmpty=pairs.every(p=>!p||!p.trim());
+    const standings=calcRRStandings(pairs,draw);
+    let h=`<div class="rr-wrap">`;
+    // Pair boxes
+    h+=`<div class="rr-pairs">`;
+    pairs.forEach((p,i)=>{
+      const name=p&&p.trim()?p:'─';
+      h+=`<div class="pair-box">
+        <div class="pair-label">PAIR ${i+1}</div>
+        <div class="pair-name">${eh(name)}</div>
+      </div>`;
+    });
+    h+=`</div>`;
+    if(allEmpty){
+      h+=`<div class="no-data">ペアが未入力です</div>`;
+    }else{
+      // Match results grid
+      h+=`<div class="match-grid">`;
+      [[0,1],[0,2],[1,2]].forEach(([a,b],mi)=>{
+        const key='rr'+mi;
+        const w=draw.winners&&draw.winners[key];
+        const sc=draw.scores&&draw.scores[key];
+        const scTxt=sc?fmtScore(sc):'';
+        const done=sc!==undefined&&sc!==null;
+        h+=`<div class="match-card${done?' done':''}">
+          <div class="match-label">${a+1} vs ${b+1}</div>
+          <div class="match-team${w===0?' winner':''}">${eh(pairs[a]||'ペア'+(a+1))}</div>
+          <div class="match-vs">vs</div>
+          <div class="match-team${w===1?' winner':''}">${eh(pairs[b]||'ペア'+(b+1))}</div>
+          ${scTxt?`<div class="match-score">${eh(scTxt)}</div>`:''}
+        </div>`;
+      });
+      h+=`</div>`;
+      // Standings
+      if(standings.some(s=>s.played>0)){
+        const rbg=['#FFF9E6','#F5F5F5','#FFF5EE'];
+        const rlbl=['🥇','🥈','🥉'];
+        h+=`<table class="standings-tbl">
+          <thead><tr>
+            <th style="text-align:left">順位 / ペア</th>
+            <th>勝</th><th>負</th><th>セット</th><th>ゲーム</th>
+          </tr></thead><tbody>`;
+        standings.forEach((s,i)=>{
+          h+=`<tr style="background:${rbg[i]||'white'}">
+            <td style="font-weight:700">${rlbl[i]} ${eh(s.name)}</td>
+            <td>${s.wins}</td><td>${s.losses}</td>
+            <td>${s.setsW}/${s.setsL}</td><td>${s.gamesW}/${s.gamesL}</td>
+          </tr>`;
+        });
+        h+=`</tbody></table>`;
+      }
+    }
+    h+=`</div>`;
+    return h;
+  }
 
-    <div id="qr-area" style="text-align:center;display:none;margin-top:8px">
-      <canvas id="qr-canvas" width="180" height="180"></canvas>
-      <div style="font-size:10px;color:#888;margin-top:4px" id="qr-label"></div>
-    </div>
+  // Sponsor footer HTML
+  let spHTML='';
+  if(spons.length>0){
+    spHTML=`<div class="pr-sp"><span class="sp-label">SPONSORS</span><span class="sp-logos">`;
+    spons.forEach((u,i)=>{spHTML+=`<img src="${u}" alt="スポンサー${i+1}" onerror="this.style.display='none'">`;});
+    spHTML+=`</span></div>`;
+  }
 
-    <!-- スナップショットURL（折りたたみ） -->
-    <details style="margin-top:8px">
-      <summary style="font-size:11px;color:#888;cursor:pointer;padding:4px 0">📸 スナップショットURL（現在のデータをURLに埋め込む）</summary>
-      <div style="padding:8px 0">
-        <textarea class="sh-url" id="url-full" rows="2" readonly></textarea>
-        <div class="sh-btns" style="margin-bottom:6px">
-          <button class="btn bp sm" onclick="copyUrl('url-full')">📋 管理URL</button>
-          <button class="btn bs sm" onclick="genQR('url-full')">QR</button>
+  // Build pages — one category per page
+  let pages='';
+  cats.forEach((cat,idx)=>{
+    if(idx>0)pages+=`<div class="page-break"></div>`;
+    const sz=getDrawSize(cat.id);
+    const draw=S.draws[cat.id]||newDraw();
+    const infoLine=[venue,dateStr].filter(Boolean).join('　｜　');
+    const isRR=(sz==='rr');
+    // For bracket: show size info
+    const szLabel=isRR?'総当たりリーグ':`${sz}組トーナメント`;
+    pages+=`<div class="pr-page">
+      <div class="pr-hdr">
+        <div>
+          <div class="pr-tname">${eh(tname)}</div>
+          ${infoLine?`<div class="pr-sub">${eh(infoLine)}</div>`:''}
         </div>
-        <textarea class="sh-url" id="url-public" rows="2" readonly></textarea>
-        <div class="sh-btns">
-          <button class="btn bp sm" onclick="copyUrl('url-public')">📋 回覧URL</button>
-          <button class="btn bs sm" onclick="genQR('url-public')">QR</button>
-        </div>
+        <div class="pr-cat">${eh(cat.label)}</div>
       </div>
-    </details>
+      <div class="pr-body ${isRR?'rr-body':'bracket-body'}">${isRR?genRR(cat,draw):genSVG(cat,draw,sz)}</div>
+      ${spHTML}
+    </div>`;
+  });
 
-    <div style="display:flex;justify-content:flex-end;margin-top:12px">
-      <button class="btn bs" onclick="closeShare()">閉じる</button>
-    </div>
-  </div>
+  const html=`<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8">
+<title>${eh(tname)} — ドロー表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* ─── Page layout ─── */
+@page{size:A4 landscape;margin:0}
+.pr-page{
+  width:297mm;height:210mm;
+  padding:8mm 10mm 6mm;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  page-break-after:always;
+  page-break-inside:avoid;
+}
+.page-break{page-break-after:always}
+/* ─── Header ─── */
+.pr-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:6px;border-bottom:2.5px solid #042C53;margin-bottom:10px;
+  flex-shrink:0;
+}
+.pr-tname{font-size:16px;font-weight:700;color:#042C53;line-height:1.2}
+.pr-sub{font-size:9px;color:#777;margin-top:2px}
+.pr-cat{
+  background:linear-gradient(135deg,#042C53,#185FA5);
+  color:white;padding:6px 18px;border-radius:20px;
+  font-size:14px;font-weight:700;white-space:nowrap;
+}
+/* ─── Body: bracket fills remaining height ─── */
+.pr-body{
+  flex:1;min-height:0;
+  display:flex;align-items:flex-start;justify-content:flex-start;
+  overflow:hidden;
+}
+/* SVG fills available height, width follows aspect ratio */
+.bracket-body .bracket-svg{
+  height:100%;width:auto;max-width:100%;display:block;
+}
+/* RR fills width naturally */
+.rr-body{display:block;overflow:hidden}
+/* ─── Sponsor footer ─── */
+.pr-sp{
+  flex-shrink:0;
+  border-top:1px solid #ddd;padding:5px 0 2px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;
+  margin-top:auto;
+}
+.sp-label{font-size:7.5px;color:#aaa;letter-spacing:2px}
+.sp-logos{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.sp-logos img{height:32px;max-width:90px;object-fit:contain}
+/* ─── RR styles ─── */
+.rr-wrap{padding:0;max-width:100%}
+.rr-pairs{display:flex;gap:12px;margin-bottom:14px}
+.pair-box{flex:1;border:2px solid #042C53;border-radius:6px;padding:9px 12px;background:#E6F1FB}
+.pair-label{font-size:8px;font-weight:700;color:#185FA5;margin-bottom:4px;letter-spacing:.5px}
+.pair-name{font-size:13px;font-weight:700;color:#042C53}
+.match-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.match-card{border:1.5px solid #B5D4F4;border-radius:7px;padding:10px;background:white;text-align:center}
+.match-card.done{border-color:#71c99e;background:#edfaf3}
+.match-label{font-size:8.5px;color:#aaa;font-weight:600;margin-bottom:5px}
+.match-team{font-size:12px;color:#555;margin:2px 0}
+.match-team.winner{font-weight:700;color:#042C53}
+.match-vs{font-size:8px;color:#ccc;margin:3px 0}
+.match-score{font-size:10px;color:#1a7a4a;font-weight:700;margin-top:6px;padding-top:5px;border-top:1px solid #c3e6cb}
+.standings-tbl{width:100%;border-collapse:collapse;font-size:11px;border:1.5px solid #042C53;border-radius:6px;overflow:hidden}
+.standings-tbl thead tr{background:#042C53;color:white}
+.standings-tbl th{padding:6px 8px;text-align:center}
+.standings-tbl td{padding:6px 8px;text-align:center;border-bottom:1px solid #e0e8f0}
+.no-data{color:#aaa;font-size:12px;padding:20px;text-align:center}
+</style>
+</head>
+<body>${pages}
+<script>window.onload=function(){setTimeout(function(){window.print();},600);};<\/script>
+</body></html>`;
+
+  const w=window.open('','_blank','width=1300,height=900');
+  if(!w){alert('ポップアップがブロックされています。ブラウザの設定でポップアップを許可してください。');return;}
+  w.document.write(html);w.document.close();
+}
+
+
+// ══════════════════════════════════════
+//  PROFESSIONAL PRINT — OOP
+// ══════════════════════════════════════
+function printOOP(){
+  const courts=S.settings.courts||4;
+  const sett=S.settings;
+  const tname=sett.name||'日本パデル協会 全国ベテラン大会';
+  const venue=sett.venue||'';
+  const d1s=sett.d1?formatDateJP(sett.d1):'';
+  const d2s=sett.d2?formatDateJP(sett.d2):'';
+  const spons=(SPONSORS||[]).filter(u=>u&&u.trim());
+  function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function grabOOPRows(cid){
+    const tbl=document.querySelector('#'+cid+'-tbl tbody');
+    if(!tbl)return[];
+    return[...(tbl.querySelectorAll('tr')||[])].map((row,i)=>{
+      const timeEl=row.querySelector('.oop-time');
+      const slotEl=row.querySelector('.oop-slot');
+      const tds=[...row.querySelectorAll('td')];
+      const cts=tds.slice(1).map(td=>{
+        const oc=td.querySelector('.oc');
+        if(!oc)return null;
+        const cc=oc.querySelector('.cc')?.textContent||'';
+        const cp=[...oc.querySelectorAll('.cp')].map(e=>e.textContent.trim());
+        const csc=oc.querySelector('.csc')?.textContent||'';
+        return{cat:cc,p1:cp[0]||'',p2:cp[1]||'',score:csc,isF:oc.classList.contains('fc'),isSF:oc.classList.contains('sc')};
+      });
+      return{time:timeEl?.textContent||'',slot:slotEl?.textContent||('第'+(i+1)+'試合'),tcls:timeEl?.className||'',courts:cts};
+    });
+  }
+
+  function buildOOPBlock(rows,numCourts,dayLabel,dayColor){
+    if(!rows.length)return'';
+    let h=`<div class="oop-block">
+      <div class="oop-day-hdr" style="background:${dayColor}">${eh(dayLabel)}</div>
+      <table class="oop-tbl"><thead><tr>
+        <th class="time-th">時間 / 試合</th>`;
+    for(let c=1;c<=numCourts;c++)h+=`<th>コート&nbsp;${c}</th>`;
+    h+=`</tr></thead><tbody>`;
+    rows.forEach((row,idx)=>{
+      h+=`<tr class="${idx%2===0?'r-even':'r-odd'}">
+        <td class="time-td">
+          <div class="t-time">${eh(row.time)}</div>
+          <div class="t-slot">${eh(row.slot)}</div>
+        </td>`;
+      for(let c=0;c<numCourts;c++){
+        const m=row.courts[c];
+        if(!m){h+=`<td><div class="mc-empty">―</div></td>`;continue;}
+        h+=`<td><div class="mc${m.isF?' mc-f':m.isSF?' mc-sf':''}">
+          <div class="mc-cat">${eh(m.cat)}</div>
+          <div class="mc-team">${eh(m.p1)}</div>
+          <div class="mc-vs">vs</div>
+          <div class="mc-team">${eh(m.p2)}</div>
+          ${m.score?`<div class="mc-score">${eh(m.score)}</div>`:''}
+        </div></td>`;
+      }
+      h+=`</tr>`;
+    });
+    h+=`</tbody></table></div>`;
+    return h;
+  }
+
+  const day1rows=grabOOPRows('oop-d1');
+  const day2rows=grabOOPRows('oop-d2');
+  const d1label='📅 1日目（1R・2R）'+(d1s?' — '+d1s:'');
+  const d2label='📅 2日目（リーグ・準決勝・決勝）'+(d2s?' — '+d2s:'');
+  const infoLine=[venue,[d1s,d2s].filter(Boolean).join(' ～ ')].filter(Boolean).join('　|　');
+
+  let spHTML='';
+  if(spons.length>0){
+    spHTML=`<div class="pr-sp"><div class="sp-sep">SPONSORS</div><div class="sp-logos">`;
+    spons.forEach((u,i)=>{spHTML+=`<img src="${u}" alt="スポンサー${i+1}" onerror="this.style.display='none'">`;});
+    spHTML+=`</div></div>`;
+  }
+
+  const html=`<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8">
+<title>${eh(tname)} — オーダーオブプレー</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+@page{size:A4 landscape;margin:9mm 10mm}
+.pr-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:3px solid #042C53;margin-bottom:14px}
+.pr-tname{font-size:17px;font-weight:700;color:#042C53;line-height:1.2}
+.pr-tsub{font-size:10px;color:#666;margin-top:3px}
+.pr-badge{background:linear-gradient(135deg,#042C53,#185FA5);color:white;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:700;white-space:nowrap}
+.oop-block{margin-bottom:20px}
+.oop-day-hdr{color:white;padding:8px 14px;font-size:13px;font-weight:700;border-radius:5px;margin-bottom:8px}
+.oop-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.oop-tbl th{padding:7px 5px;text-align:center;font-size:10.5px;white-space:nowrap;background:#185FA5;color:white;border:1px solid #0C447C}
+.oop-tbl th.time-th{background:#042C53;min-width:100px}
+.oop-tbl td{border:1px solid #C8DCF0;vertical-align:top;padding:2px}
+.oop-tbl td.time-td{background:#E6F1FB;padding:5px 6px;vertical-align:middle;text-align:center;white-space:nowrap}
+.t-time{font-size:12px;font-weight:700;color:#042C53}
+.t-slot{font-size:9.5px;color:#666;margin-top:2px}
+.r-even td{background:white}.r-odd td{background:#f8fbff}
+.r-even td.time-td,.r-odd td.time-td{background:#E6F1FB}
+.mc{border:1px solid #dde;border-radius:4px;padding:5px 6px;min-height:64px;background:white}
+.mc-f{border-color:#e67e00;background:#fff8f0}
+.mc-sf{border-color:#185FA5;background:#f0f6ff}
+.mc-cat{font-size:8.5px;font-weight:700;color:#999;margin-bottom:2px}
+.mc-f .mc-cat{color:#cc6e00}.mc-sf .mc-cat{color:#185FA5}
+.mc-team{font-size:11px;color:#042C53;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mc-vs{font-size:8.5px;color:#bbb;text-align:center;margin:2px 0}
+.mc-score{font-size:10px;color:#1a7a4a;font-weight:700;text-align:center;margin-top:3px;padding-top:3px;border-top:1px solid #c3e6cb}
+.mc-empty{text-align:center;color:#ddd;font-size:16px;padding:20px 0}
+.pr-sp{border-top:1px solid #ddd;padding:8px 0 2px;text-align:center;margin-top:16px}
+.sp-sep{font-size:8px;color:#aaa;letter-spacing:2px;margin-bottom:5px}
+.sp-logos{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
+.sp-logos img{height:36px;max-width:100px;object-fit:contain}
+</style>
+</head>
+<body>
+<div class="pr-hdr">
+  <div><div class="pr-tname">${eh(tname)}</div>${infoLine?`<div class="pr-tsub">${eh(infoLine)}</div>`:''}</div>
+  <div class="pr-badge">📋 オーダーオブプレー</div>
 </div>
+${buildOOPBlock(day1rows,courts,d1label,'#185FA5')}
+${day2rows.length?`<div style="page-break-before:always"></div>
+<div class="pr-hdr" style="margin-bottom:14px">
+  <div><div class="pr-tname">${eh(tname)}</div>${infoLine?`<div class="pr-tsub">${eh(infoLine)}</div>`:''}</div>
+  <div class="pr-badge">📋 オーダーオブプレー</div>
+</div>`:''}
+${buildOOPBlock(day2rows,courts,d2label,'#b05000')}
+${spHTML}
+<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
+</body></html>`;
 
+  const w=window.open('','_blank','width=1280,height=850');
+  if(!w){alert('ポップアップがブロックされています。');return;}
+  w.document.write(html);w.document.close();
+}
+
+// ══════════════════════════════════════
+//  PROFESSIONAL PRINT — RAIN OOP
+// ══════════════════════════════════════
+function printRainOOP(){
+  const sett=S.settings;
+  const tname=sett.name||'日本パデル協会 全国ベテラン大会';
+  const spons=(SPONSORS||[]).filter(u=>u&&u.trim());
+  function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  const rainBody=document.getElementById('rain-body');
+  if(!rainBody||!rainBody.innerHTML.trim()){alert('雨天OOPが生成されていません');return;}
+  const cloned=rainBody.cloneNode(true);
+  cloned.querySelectorAll('button,input').forEach(el=>el.remove());
+  let spHTML='';
+  if(spons.length>0){
+    spHTML=`<div class="pr-sp"><div class="sp-sep">SPONSORS</div><div class="sp-logos">`;
+    spons.forEach((u,i)=>{spHTML+=`<img src="${u}" alt="スポンサー${i+1}" onerror="this.style.display='none'">`;});
+    spHTML+=`</div></div>`;
+  }
+  const d1v=document.getElementById('rain-d1-date')?.value||'';
+  const d2v=document.getElementById('rain-d2-date')?.value||'';
+  const ds=[d1v?formatDateJP(d1v):'',d2v?formatDateJP(d2v):''].filter(Boolean).join(' ～ ');
+  const html=`<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8">
+<title>${eh(tname)} — 雨天OOP</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:12px}
+@page{size:A4 landscape;margin:9mm 10mm}
+:root{--bd:#042C53;--bm:#185FA5;--bl:#E6F1FB;--bb:#B5D4F4;--ok:#1a7a4a;--okb:#e8f5ee}
+.pr-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:3px solid #042C53;margin-bottom:14px}
+.pr-tname{font-size:17px;font-weight:700;color:#042C53}
+.pr-tsub{font-size:10px;color:#666;margin-top:3px}
+.pr-badge{background:linear-gradient(135deg,#042C53,#185FA5);color:white;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700}
+.oop-tbl,.oop-t{width:100%;border-collapse:collapse;font-size:11px}
+.oop-tbl th,.oop-t th{padding:7px 5px;text-align:center;font-size:10.5px;white-space:nowrap;background:#185FA5;color:white;border:1px solid #0C447C}
+.oop-tbl td,.oop-t td{border:1px solid #C8DCF0;vertical-align:top;padding:2px}
+.oop-tbl td.sl,.oop-t td.sl{background:#E6F1FB;padding:5px 8px;vertical-align:middle;text-align:center}
+.oc{border:1px solid #dde;border-radius:4px;padding:5px 6px;min-height:64px;background:white}
+.oc.fc{border-color:#e67e00;background:#fff8f0}
+.oc.sc{border-color:#185FA5;background:#f0f6ff}
+.oc .cc{font-size:8.5px;font-weight:700;color:#999;margin-bottom:2px}
+.oc.fc .cc{color:#cc6e00}.oc.sc .cc{color:#185FA5}
+.oc .cp{font-size:11px;color:#042C53;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.oc .cv{font-size:8.5px;color:#bbb;text-align:center;margin:2px 0}
+.oc .csc{font-size:10px;color:#1a7a4a;font-weight:700;text-align:center;margin-top:3px;padding-top:3px;border-top:1px solid #c3e6cb}
+.ec{text-align:center;color:#ddd;font-size:16px;padding:20px 0}
+.day-hdr{color:white;padding:8px 14px;font-size:13px;font-weight:700;border-radius:5px;margin:12px 0 8px;display:flex;align-items:center;gap:8px}
+.day-hdr.d1{background:#185FA5}
+.day-hdr.d2{background:#b05000}
+.oop-time{font-size:11px;font-weight:700;display:inline-block;min-width:44px}
+.oop-time.t-morn{color:#185FA5}.oop-time.t-noon{color:#c47700}.oop-time.t-aftn{color:#c04000}
+.oop-slot{font-size:9.5px;color:#888;margin-top:2px}
+.pr-sp{border-top:1px solid #ddd;padding:8px 0 2px;text-align:center;margin-top:16px}
+.sp-sep{font-size:8px;color:#aaa;letter-spacing:2px;margin-bottom:5px}
+.sp-logos{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
+.sp-logos img{height:36px;max-width:100px;object-fit:contain}
+</style>
+</head>
+<body>
+<div class="pr-hdr">
+  <div><div class="pr-tname">${eh(tname)}</div>${ds?`<div class="pr-tsub">🌧 雨天用　${eh(ds)}</div>`:''}</div>
+  <div class="pr-badge">🌧 雨天用 オーダーオブプレー</div>
+</div>
+${cloned.innerHTML}
+${spHTML}
+<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
+</body></html>`;
+  const w=window.open('','_blank','width=1280,height=850');
+  if(!w){alert('ポップアップがブロックされています。');return;}
+  w.document.write(html);w.document.close();
+}
+
+</script>
 </body>
 </html>
