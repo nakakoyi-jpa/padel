@@ -1505,7 +1505,7 @@ function scheduleMatches(matches, courts){
       p1:'—',p2:'—',round:'インターバル',done:false,_interval:true};
   }
 
-  // ── DAY1: トーナメント 1R/2R のみ（RRは全て2日目）──
+  // ── DAY1: トーナメント 1R/2R ＋ 男子60+リーグ（第1試合から1試合間隔で配置）──
   const day1Other=otherMatches.filter(m=>m.day===1);
   const day2Other=otherMatches.filter(m=>m.day!==1);
   // 男子40+1Rを男子50+の前に配置、同年齢内は女子を先に（例：女子55+1R → 男子55+1R）
@@ -1518,7 +1518,19 @@ function scheduleMatches(matches, courts){
     const gb=(b.cat&&b.cat.startsWith('女子'))?0:1;
     return ga-gb;
   });
-  queue.push(...day1Other);
+  if(rrR0.length>0&&day1Other.length>0){
+    // Day1にRR（男子60+）→ 第1試合から1試合間隔で配置（Day2と同じパターン）
+    const d1Pool=[...day1Other];
+    const fillD1=()=>{const r=queue.length%courts;if(r>0){const n=courts-r;const t=d1Pool.splice(0,n);while(t.length<n)t.push(makeEmpty());queue.push(...t);}};
+    const takeD1=()=>{const t=d1Pool.splice(0,courts);while(t.length<courts)t.push(makeEmpty());return t;};
+    queue.push(...rrR0);fillD1();queue.push(...takeD1()); // 第1試合:RR第1戦＋他、第2試合:他
+    if(rrR1.length>0){queue.push(...rrR1);fillD1();queue.push(...takeD1());} // 第3試合:RR第2戦、第4試合:他
+    if(rrR2.length>0){queue.push(...rrR2);fillD1();}                         // 第5試合:RR第3戦
+    queue.push(...d1Pool); // 残りトーナメント試合
+    rrR0.splice(0);rrR1.splice(0);rrR2.splice(0); // Day2パスで重複しないようクリア
+  } else {
+    queue.push(...day1Other);
+  }
 
   // ── DAY2: 3組総当たりを第1・第3・第5試合に配置、空きコートも他の試合で埋める ──
   function makeEmpty(){return {id:'__empty__'+(ivCount++),_empty:true,age:0,p1:'',p2:'',round:'',cat:'',done:false};}
@@ -3318,26 +3330,4 @@ html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP
 .oop-time{font-size:11px;font-weight:700;display:inline-block;min-width:44px}
 .oop-time.t-morn{color:#185FA5}.oop-time.t-noon{color:#c47700}.oop-time.t-aftn{color:#c04000}
 .oop-slot{font-size:9.5px;color:#888;margin-top:2px}
-.pr-sp{border-top:1px solid #ddd;padding:8px 0 2px;text-align:center;margin-top:16px}
-.sp-sep{font-size:8px;color:#aaa;letter-spacing:2px;margin-bottom:5px}
-.sp-logos{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
-.sp-logos img{height:36px;max-width:100px;object-fit:contain}
-</style>
-</head>
-<body>
-<div class="pr-hdr">
-  <div><div class="pr-tname">${eh(tname)}</div>${ds?`<div class="pr-tsub">🌧 雨天用　${eh(ds)}</div>`:''}</div>
-  <div class="pr-badge">🌧 雨天用 オーダーオブプレー</div>
-</div>
-${cloned.innerHTML}
-${spHTML}
-<script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script>
-</body></html>`;
-  const w=window.open('','_blank','width=1280,height=850');
-  if(!w){alert('ポップアップがブロックされています。');return;}
-  w.document.write(html);w.document.close();
-}
-
-</script>
-</body>
-</html>
+.pr-sp{border-top:1px soli
