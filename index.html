@@ -3335,4 +3335,9 @@ ${spHTML}
 </body></html>`;
   const w=window.open('','_blank','width=1280,height=850');
   if(!w){alert('ポップアップがブロックされています。');return;}
-  w.document.write(html);w.d
+  w.document.write(html);w.document.close();
+}
+
+</script>
+</body>
+</html>
