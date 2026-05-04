@@ -1565,10 +1565,9 @@ function scheduleMatches(matches, courts){
       queue.push(...rrR2); fillToSlotBoundary();
     }
   } else {
-    // RR試合なし: SF・決勝をそのまま配置
-    queue.push(...sfMatches,...finalMatches);
+    // RR試合なし: otherDay2Pool（SF・決勝）はそのまま下の行で追加（重複防止）
   }
-  // 残りのDay2試合（SF・決勝の余り）
+  // 残りのDay2試合（RRがある場合はsplice済み残り、ない場合はSF・決勝全て）
   queue.push(...otherDay2Pool);
 
   // ── Assign queue to courts using cursor ──
