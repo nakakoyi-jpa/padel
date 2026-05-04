@@ -1402,7 +1402,7 @@ function getCatMatches(cat){
       const pairA=[0,1,0][origI], pairB=[1,2,2][origI];
       const w=draw.winners&&draw.winners[key];
       const sc=draw.scores&&draw.scores[key];
-      const day=2; // 3組総当たりは全試合2日目
+      const day=cat.id==='m60'?1:2; // 男子60+は1日目、他のRRは2日目
       res.push({id:cat.id+'_'+key,cat:cat.label,age:cat.age,
         p1:pairs[pairA]||'ペア'+(pairA+1),p2:pairs[pairB]||'ペア'+(pairB+1),
         round:'リーグ',day,rrRound,done:w!==undefined,score:sc});
@@ -1737,7 +1737,7 @@ function renderOOP(){
 
   // Date labels in day headers
   function fmtDJ(d){if(!d)return '';try{const dt=new Date(d+'T00:00:00');return ' '+(dt.getMonth()+1)+'月'+dt.getDate()+'日（'+['日','月','火','水','木','金','土'][dt.getDay()]+'）';}catch(e){return '';}}
-  const dh1=document.querySelector('.day-hdr.d1');if(dh1)dh1.textContent='📅 1日目（1R・2R）'+fmtDJ(S.settings.d1);
+  const dh1=document.querySelector('.day-hdr.d1');if(dh1)dh1.textContent='📅 1日目（1R・2R・男子60+リーグ）'+fmtDJ(S.settings.d1);
   const dh2=document.querySelector('.day-hdr.d2');if(dh2)dh2.textContent='📅 2日目（リーグ・準決勝・決勝）'+fmtDJ(S.settings.d2);
 
   renderOOPTable(day1,'oop-d1',courts);
@@ -3122,7 +3122,7 @@ html,body{background:white;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP
 </head>
 <body>${pages}
 <script>window.onload=function(){setTimeout(function(){window.print();},600);};<\/script>
-</body></html>`;
+</body></html></body></html>`;
 
   const w=window.open('','_blank','width=1300,height=900');
   if(!w){alert('ポップアップがブロックされています。ブラウザの設定でポップアップを許可してください。');return;}
@@ -3335,9 +3335,4 @@ ${spHTML}
 </body></html>`;
   const w=window.open('','_blank','width=1280,height=850');
   if(!w){alert('ポップアップがブロックされています。');return;}
-  w.document.write(html);w.document.close();
-}
-
-</script>
-</body>
-</html>
+  w.document.write(html);w.d
